@@ -22,7 +22,7 @@ class RepositoryFactory extends Factory
      */
     public function definition(): array
     {
-        $name = fake()->word() . '-' . fake()->word();
+        $name = fake()->word().'-'.fake()->word();
 
         return [
             'name' => $name,

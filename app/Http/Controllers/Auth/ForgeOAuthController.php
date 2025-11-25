@@ -15,8 +15,6 @@ class ForgeOAuthController extends Controller
 {
     /**
      * Redirect the user to the Forge OAuth authorization page.
-     *
-     * @return RedirectResponse
      */
     public function redirect(): RedirectResponse
     {
@@ -30,9 +28,6 @@ class ForgeOAuthController extends Controller
 
     /**
      * Handle the callback from Forge OAuth.
-     *
-     * @param Request $request
-     * @return RedirectResponse
      */
     public function callback(Request $request): RedirectResponse
     {

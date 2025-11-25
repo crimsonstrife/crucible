@@ -22,6 +22,7 @@ class User extends Authenticatable implements FilamentUser
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
+
     use HasProfilePhoto;
     use HasRoles;
     use HasTeams;
