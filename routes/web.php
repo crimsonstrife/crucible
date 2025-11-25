@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\ForgeOAuthController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DashboardController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -12,9 +13,8 @@ Route::middleware([
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard', DashboardController::class)
+        ->name('dashboard');
 });
 
 // Forge OAuth routes (placeholder)
