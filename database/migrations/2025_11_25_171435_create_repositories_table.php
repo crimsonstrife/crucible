@@ -13,11 +13,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('repositories', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('name');
             $table->string('slug');
             $table->text('description')->nullable();
-            $table->foreignId('organization_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('organization_id')->constrained()->onDelete('cascade');
             $table->string('visibility')->default(RepositoryVisibility::Private->value);
             $table->string('default_branch')->default('main');
             $table->timestamps();

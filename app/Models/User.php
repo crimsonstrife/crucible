@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -22,12 +23,15 @@ class User extends Authenticatable implements FilamentUser
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
-
+    use HasUuids;
     use HasProfilePhoto;
     use HasRoles;
     use HasTeams;
     use Notifiable;
     use TwoFactorAuthenticatable;
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     /**
      * The attributes that are mass assignable.
