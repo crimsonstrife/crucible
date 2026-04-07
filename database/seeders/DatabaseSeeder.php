@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,22 +13,26 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Run the permission seeder first
-        $this->call([
-            PermissionSeeder::class,
-        ]);
+        // Always seed roles and permissions first
+        $this->call(RolesAndPermissionsSeeder::class);
 
-        // Create an admin test user
-        $adminUser = User::factory()->withPersonalTeam()->create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-        ]);
-        $adminUser->assignRole('admin');
+        // Create the default super-admin account (dev/local environments)
+        $email = env('ADMIN_EMAIL', 'admin@crucible.test');
 
-        // Create a regular test user
-        User::factory()->withPersonalTeam()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        /** @var User $admin */
+        $admin = User::where('email', $email)->first();
+
+        if (! $admin) {
+            $admin = User::factory()->withPersonalTeam()->create([
+                'name'              => 'Crucible Admin',
+                'email'             => $email,
+                'password'          => Hash::make(env('ADMIN_PASSWORD', 'password')),
+                'email_verified_at' => now(),
+            ]);
+        }
+
+        $admin->syncRoles(['super-admin']);
+
+        $this->command->info("Admin user ready: {$admin->email}");
     }
 }

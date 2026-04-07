@@ -11,9 +11,18 @@ enum RepositoryVisibility: string
     public function label(): string
     {
         return match ($this) {
-            self::Public => 'Public',
-            self::Private => 'Private',
-            self::Internal => 'Internal (Organization only)',
+            RepositoryVisibility::Public => 'Public',
+            RepositoryVisibility::Private => 'Private',
+            RepositoryVisibility::Internal => 'Internal',
+        };
+    }
+
+    public function description(): string
+    {
+        return match ($this) {
+            RepositoryVisibility::Public => 'Anyone can view and clone. Pushes still require an authorized account.',
+            RepositoryVisibility::Private => 'Only explicitly authorized users can view or clone. Pushes still require authorization.',
+            RepositoryVisibility::Internal => 'All organization members can view and clone. Pushes still require authorization.',
         };
     }
 }

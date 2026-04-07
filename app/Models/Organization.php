@@ -2,50 +2,53 @@
 
 namespace App\Models;
 
+use App\Traits\IsPermissible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Builder;
+use Spatie\Sluggable\HasSlug;
+use Spatie\Sluggable\SlugOptions;
 
-class Organization extends Model
+class Organization extends BaseModel
 {
-    use HasFactory;
-    use HasUuids;
-
-    public $incrementing = false;
-    protected $keyType = 'string';
+    use HasFactory, HasSlug, HasUuids, IsPermissible;
 
     protected $fillable = [
         'name',
         'slug',
         'description',
-        'owner_id',
+        'avatar_path',
+        'website_url',
+        'is_personal',
+        'storage_quota_gb',
     ];
 
-    protected static function boot()
-    {
-        parent::boot();
+    protected $casts = [
+        'is_personal'      => 'boolean',
+        'storage_quota_gb' => 'integer',
+    ];
 
-        static::creating(function (Organization $organization) {
-            if (empty($organization->slug)) {
-                $organization->slug = Str::slug($organization->name);
-            }
-        });
+    public function getSlugOptions(): SlugOptions
+    {
+        return SlugOptions::create()
+            ->generateSlugsFrom('name')
+            ->saveSlugsTo('slug')
+            ->doNotGenerateSlugsOnUpdate();
     }
 
-    public function owner(): BelongsTo
+    public function getRouteKeyName(): string
     {
-        return $this->belongsTo(User::class, 'owner_id');
+        return 'slug';
     }
 
-    public function users(): BelongsToMany
+    public function members(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)
+        return $this->belongsToMany(User::class, 'organization_members')
             ->withPivot('role')
-            ->withTimestamps();
+            ->withTimestamps()
+            ->using(OrganizationMember::class);
     }
 
     public function repositories(): HasMany
@@ -53,18 +56,12 @@ class Organization extends Model
         return $this->hasMany(Repository::class);
     }
 
-    public function members(): BelongsToMany
+    public function scopeVisibleTo(Builder $query, User $user): Builder
     {
-        return $this->users();
-    }
+        if ($user->hasPermissionTo('is-super-admin', 'web')) {
+            return $query;
+        }
 
-    public function hasMember(User $user): bool
-    {
-        return $this->users()->where('user_id', $user->id)->exists();
-    }
-
-    public function isOwner(User $user): bool
-    {
-        return $this->owner_id === $user->id;
+        return $query->whereHas('members', fn ($q) => $q->where('users.id', $user->id));
     }
 }

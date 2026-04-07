@@ -2,24 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use App\Traits\HasPermissionSets;
+use App\Traits\IsPermissible;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\Permission\Models\Role as SpatieRole;
 
+/**
+ * Roles use standard auto-increment integer PKs (Spatie default).
+ * UUID is only needed on domain models — not on ACL primitives.
+ */
 class Role extends SpatieRole
 {
-    use HasUuids;
+    use HasPermissionSets, IsPermissible;
 
-    /**
-     * The "type" of the primary key ID.
-     *
-     * @var string
-     */
-    protected $keyType = 'string';
-
-    /**
-     * Indicates if the IDs are auto-incrementing.
-     *
-     * @var bool
-     */
-    public $incrementing = false;
+    public function permissionSets(): BelongsToMany
+    {
+        return $this->belongsToMany(PermissionSet::class, 'role_permission_sets');
+    }
 }

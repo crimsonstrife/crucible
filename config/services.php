@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'forge' => [
+        'client_id'     => env('FORGE_CLIENT_ID'),
+        'client_secret' => env('FORGE_CLIENT_SECRET'),
+        'redirect'      => env('FORGE_REDIRECT_URI', env('APP_URL', 'http://localhost').'/auth/forge/callback'),
+    ],
+
 ];

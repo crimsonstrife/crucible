@@ -1,0 +1,159 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Models\Organization;
+use App\Models\Repository;
+use App\Services\NativeGitRepositoryService;
+use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
+use Tests\TestCase;
+
+class NativeGitRepositoryServiceTest extends TestCase
+{
+    protected string $reposPath;
+
+    protected string $workspacePath;
+
+    protected NativeGitRepositoryService $service;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $root = storage_path('framework/testing/native-git-'.Str::uuid());
+
+        $this->reposPath = $root.'/repositories';
+        $this->workspacePath = $root.'/workspaces';
+
+        config()->set('crucible.git.repos_path', $this->reposPath);
+
+        $this->service = app(NativeGitRepositoryService::class);
+    }
+
+    protected function tearDown(): void
+    {
+        app('files')->deleteDirectory(dirname($this->reposPath));
+
+        parent::tearDown();
+    }
+
+    public function test_initialize_creates_a_bare_repository_with_the_requested_default_branch(): void
+    {
+        $repository = $this->makeRepository(defaultBranch: 'develop');
+
+        $this->service->initialize($repository);
+
+        $this->assertTrue($this->service->exists($repository));
+        $this->assertSame('develop', $this->service->defaultBranch($repository));
+        $this->assertSame(['develop'], $this->service->branches($repository));
+        $this->assertDirectoryExists($this->service->pathFor($repository));
+    }
+
+    public function test_clone_copies_remote_refs_and_delete_removes_the_repository_directory(): void
+    {
+        $remoteRepository = $this->makeRepository(
+            organizationSlug: 'remote-org',
+            repositorySlug: 'remote-repo',
+            defaultBranch: 'main',
+        );
+
+        $this->service->initialize($remoteRepository);
+        $this->pushCommitToRemote($remoteRepository);
+
+        $clonedRepository = $this->makeRepository(
+            organizationSlug: 'clone-org',
+            repositorySlug: 'cloned-repo',
+            defaultBranch: 'main',
+        );
+
+        $this->service->clone($this->service->pathFor($remoteRepository), $clonedRepository);
+
+        $this->assertTrue($this->service->exists($clonedRepository));
+        $this->assertSame('main', $this->service->defaultBranch($clonedRepository));
+        $this->assertContains('main', $this->service->branches($clonedRepository));
+        $this->assertGreaterThan(0, $this->service->size($clonedRepository));
+
+        $this->service->delete($clonedRepository);
+
+        $this->assertFalse($this->service->exists($clonedRepository));
+    }
+
+    public function test_recursive_tree_and_file_contents_are_available_for_committed_content(): void
+    {
+        $repository = $this->makeRepository(defaultBranch: 'main');
+
+        $this->service->initialize($repository);
+        $this->pushCommitToRemote($repository);
+
+        $tree = $this->service->recursiveTree($repository, 'main');
+
+        $this->assertTrue($this->service->hasRevision($repository, 'main'));
+        $this->assertContains('README.md', collect($tree)->pluck('name')->all());
+        $this->assertContains('src', collect($tree)->pluck('name')->all());
+
+        $srcDirectory = collect($tree)->firstWhere('name', 'src');
+
+        $this->assertNotNull($srcDirectory);
+        $this->assertContains('GameData.txt', collect($srcDirectory['children'])->pluck('name')->all());
+        $this->assertStringContainsString(
+            '# Native Git',
+            (string) $this->service->fileContents($repository, 'README.md', 'main'),
+        );
+    }
+
+    protected function makeRepository(
+        string $organizationSlug = 'studio',
+        string $repositorySlug = 'sample-repo',
+        string $defaultBranch = 'main',
+    ): Repository {
+        $organization = new Organization([
+            'id' => (string) Str::uuid(),
+            'name' => Str::headline($organizationSlug),
+            'slug' => $organizationSlug,
+        ]);
+
+        $repository = new Repository([
+            'id' => (string) Str::uuid(),
+            'name' => Str::headline($repositorySlug),
+            'slug' => $repositorySlug,
+            'default_branch' => $defaultBranch,
+        ]);
+
+        $repository->setRelation('organization', $organization);
+
+        return $repository;
+    }
+
+    protected function pushCommitToRemote(Repository $repository): void
+    {
+        $workingDirectory = $this->workspacePath.'/'.Str::uuid();
+
+        app('files')->ensureDirectoryExists($workingDirectory);
+
+        $this->runCommand(['git', 'init', '--initial-branch=main', $workingDirectory]);
+        $this->runCommand(['git', '-C', $workingDirectory, 'config', 'user.name', 'Crucible Test']);
+        $this->runCommand(['git', '-C', $workingDirectory, 'config', 'user.email', 'test@example.com']);
+
+        app('files')->ensureDirectoryExists($workingDirectory.'/src');
+        file_put_contents($workingDirectory.'/README.md', "# Native Git\n");
+        file_put_contents($workingDirectory.'/src/GameData.txt', "build=42\n");
+
+        $this->runCommand(['git', '-C', $workingDirectory, 'add', 'README.md']);
+        $this->runCommand(['git', '-C', $workingDirectory, 'add', 'src/GameData.txt']);
+        $this->runCommand(['git', '-C', $workingDirectory, 'commit', '-m', 'Initial commit']);
+        $this->runCommand(['git', '-C', $workingDirectory, 'remote', 'add', 'origin', $this->service->pathFor($repository)]);
+        $this->runCommand(['git', '-C', $workingDirectory, 'push', 'origin', 'main']);
+    }
+
+    protected function runCommand(array $command): void
+    {
+        $process = new Process($command);
+        $process->run();
+
+        $this->assertTrue(
+            $process->isSuccessful(),
+            'Command failed: '.implode(' ', $command).PHP_EOL.$process->getErrorOutput(),
+        );
+    }
+}

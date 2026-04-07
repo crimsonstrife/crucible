@@ -8,74 +8,72 @@
     </x-slot>
 
     <x-slot name="form">
-        <!-- Profile Photo -->
+        {{-- Profile Photo --}}
         @if (Laravel\Jetstream\Jetstream::managesProfilePhotos())
-            <div x-data="{photoName: null, photoPreview: null}" class="col-span-6 sm:col-span-4">
-                <!-- Profile Photo File Input -->
-                <input type="file" id="photo" class="hidden"
+            <div class="col-12">
+                <x-label for="photo" value="{{ __('Profile Photo') }}" />
+
+                <div class="mt-2 d-flex align-items-center gap-3">
+                    {{-- Current Photo --}}
+                    <div id="current-photo-container">
+                        <img src="{{ $this->user->profile_photo_url }}"
+                             alt="{{ $this->user->name }}"
+                             class="rounded-circle"
+                             style="width: 4rem; height: 4rem; object-fit: cover;">
+                    </div>
+
+                    {{-- New Photo Preview --}}
+                    <div id="new-photo-container" style="display: none;">
+                        <span id="new-photo-preview"
+                              class="rounded-circle d-block"
+                              style="width: 4rem; height: 4rem; background-size: cover; background-position: center;"></span>
+                    </div>
+
+                    <div>
+                        <input type="file" id="photo" class="d-none"
                             wire:model.live="photo"
-                            x-ref="photo"
-                            x-on:change="
-                                    photoName = $refs.photo.files[0].name;
-                                    const reader = new FileReader();
-                                    reader.onload = (e) => {
-                                        photoPreview = e.target.result;
-                                    };
-                                    reader.readAsDataURL($refs.photo.files[0]);
-                            " />
+                            onchange="previewProfilePhoto(this)" />
 
-                <x-label for="photo" value="{{ __('Photo') }}" />
+                        <x-secondary-button type="button" onclick="document.getElementById('photo').click()">
+                            {{ __('Select A New Photo') }}
+                        </x-secondary-button>
 
-                <!-- Current Profile Photo -->
-                <div class="mt-2" x-show="! photoPreview">
-                    <img src="{{ $this->user->profile_photo_url }}" alt="{{ $this->user->name }}" class="rounded-full size-20 object-cover">
+                        @if ($this->user->profile_photo_path)
+                            <x-secondary-button type="button" class="ms-2" wire:click="deleteProfilePhoto">
+                                {{ __('Remove Photo') }}
+                            </x-secondary-button>
+                        @endif
+                    </div>
                 </div>
-
-                <!-- New Profile Photo Preview -->
-                <div class="mt-2" x-show="photoPreview" style="display: none;">
-                    <span class="block rounded-full size-20 bg-cover bg-no-repeat bg-center"
-                          x-bind:style="'background-image: url(\'' + photoPreview + '\');'">
-                    </span>
-                </div>
-
-                <x-secondary-button class="mt-2 me-2" type="button" x-on:click.prevent="$refs.photo.click()">
-                    {{ __('Select A New Photo') }}
-                </x-secondary-button>
-
-                @if ($this->user->profile_photo_path)
-                    <x-secondary-button type="button" class="mt-2" wire:click="deleteProfilePhoto">
-                        {{ __('Remove Photo') }}
-                    </x-secondary-button>
-                @endif
 
                 <x-input-error for="photo" class="mt-2" />
             </div>
         @endif
 
-        <!-- Name -->
-        <div class="col-span-6 sm:col-span-4">
+        {{-- Name --}}
+        <div class="col-12 col-md-8">
             <x-label for="name" value="{{ __('Name') }}" />
-            <x-input id="name" type="text" class="mt-1 block w-full" wire:model="state.name" required autocomplete="name" />
-            <x-input-error for="name" class="mt-2" />
+            <x-input id="name" type="text" class="mt-1" wire:model="state.name" required autocomplete="name" />
+            <x-input-error for="name" class="mt-1" />
         </div>
 
-        <!-- Email -->
-        <div class="col-span-6 sm:col-span-4">
+        {{-- Email --}}
+        <div class="col-12 col-md-8">
             <x-label for="email" value="{{ __('Email') }}" />
-            <x-input id="email" type="email" class="mt-1 block w-full" wire:model="state.email" required autocomplete="username" />
-            <x-input-error for="email" class="mt-2" />
+            <x-input id="email" type="email" class="mt-1" wire:model="state.email" required autocomplete="username" />
+            <x-input-error for="email" class="mt-1" />
 
             @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::emailVerification()) && ! $this->user->hasVerifiedEmail())
-                <p class="text-sm mt-2">
+                <p class="text-muted small mt-2">
                     {{ __('Your email address is unverified.') }}
 
-                    <button type="button" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" wire:click.prevent="sendEmailVerification">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-underline" wire:click.prevent="sendEmailVerification">
                         {{ __('Click here to re-send the verification email.') }}
                     </button>
                 </p>
 
                 @if ($this->verificationLinkSent)
-                    <p class="mt-2 font-medium text-sm text-green-600">
+                    <p class="text-success small mt-1 fw-medium">
                         {{ __('A new verification link has been sent to your email address.') }}
                     </p>
                 @endif
@@ -84,7 +82,7 @@
     </x-slot>
 
     <x-slot name="actions">
-        <x-action-message class="me-3" on="saved">
+        <x-action-message on="saved">
             {{ __('Saved.') }}
         </x-action-message>
 
@@ -93,3 +91,18 @@
         </x-button>
     </x-slot>
 </x-form-section>
+
+<script>
+function previewProfilePhoto(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('current-photo-container').style.display = 'none';
+            const preview = document.getElementById('new-photo-preview');
+            preview.style.backgroundImage = 'url(' + e.target.result + ')';
+            document.getElementById('new-photo-container').style.display = '';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+</script>

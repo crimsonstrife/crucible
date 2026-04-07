@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# Crucible pre-receive hook
+#
+# Installed automatically by Crucible when a repository is created or cloned.
+# Calls back to the Crucible application to enforce lock policies and branch
+# protection rules before accepting a push.
+#
+# Template variables:
+#   __CRUCIBLE_PHP_BINARY__   — absolute path to the PHP binary
+#   __CRUCIBLE_ARTISAN_PATH__ — absolute path to artisan
+#   __CRUCIBLE_REPO_ID__      — UUID of the Repository model
+
+set -euo pipefail
+
+PHP_BINARY="__CRUCIBLE_PHP_BINARY__"
+ARTISAN_PATH="__CRUCIBLE_ARTISAN_PATH__"
+REPO_ID="__CRUCIBLE_REPO_ID__"
+
+# Pass stdin (ref updates) through to the artisan command.
+exec "$PHP_BINARY" "$ARTISAN_PATH" crucible:pre-receive-hook \
+    --repo-id="$REPO_ID" \
+    --pusher-env="GL_USERNAME=${GL_USERNAME:-}" \
+    --pusher-env="GL_ID=${GL_ID:-}"

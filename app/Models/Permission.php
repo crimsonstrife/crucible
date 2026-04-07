@@ -2,24 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Spatie\Permission\Models\Permission as SpatiePermission;
 
+/**
+ * Thin wrapper so config/permission.php can reference App\Models\Permission.
+ * Permissions use standard auto-increment integer PKs — no UUID needed here.
+ */
 class Permission extends SpatiePermission
 {
-    use HasUuids;
-
-    /**
-     * The "type" of the primary key ID.
-     *
-     * @var string
-     */
-    protected $keyType = 'string';
-
-    /**
-     * Indicates if the IDs are auto-incrementing.
-     *
-     * @var bool
-     */
-    public $incrementing = false;
+    //
 }

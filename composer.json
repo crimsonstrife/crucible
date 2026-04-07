@@ -1,41 +1,39 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "crucible/crucible",
+    "name": "laravel/laravel",
     "type": "project",
-    "description": "A Bitbucket-like code hosting platform",
-    "keywords": [
-        "laravel",
-        "framework",
-        "git",
-        "repository",
-        "crucible"
-    ],
+    "description": "The skeleton application for the Laravel framework.",
+    "keywords": ["laravel", "framework"],
     "license": "MIT",
-    "authors": [
-        {
-            "name": "Crucible Team",
-            "email": "team@crucible.dev"
-        }
-    ],
     "require": {
         "php": "^8.3",
+        "doctrine/dbal": "^4.0",
         "filament/filament": "^4.0",
+        "filament/spatie-laravel-settings-plugin": "^4.0",
+        "guzzlehttp/guzzle": "^7.0",
         "laravel/framework": "^12.0",
-        "laravel/jetstream": "^5.4",
+        "laravel/jetstream": "^5.3",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.10.1",
+        "laravel/socialite": "^5.0",
+        "laravel/tinker": "^3.0",
         "livewire/livewire": "^3.6.4",
-        "spatie/laravel-permission": "^6.23",
-        "spatie/laravel-settings": "^3.5"
+        "predis/predis": "^3.4",
+        "ramsey/uuid": "^4.0",
+        "spatie/laravel-activitylog": "^4.0",
+        "spatie/laravel-medialibrary": "^11.0",
+        "spatie/laravel-permission": "^6.0",
+        "spatie/laravel-settings": "^3.0",
+        "spatie/laravel-sluggable": "^3.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
-        "laravel/pail": "^1.2.2",
-        "laravel/pint": "^1.24",
+        "larastan/larastan": "^3.0",
+        "laravel/pail": "^1.2.5",
+        "laravel/pint": "^1.29",
         "laravel/sail": "^1.41",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^11.5.3"
+        "phpunit/phpunit": "^12.5.12"
     },
     "autoload": {
         "psr-4": {
@@ -60,7 +58,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
         ],
         "test": [
             "@php artisan config:clear --ansi",

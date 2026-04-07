@@ -1,8 +1,19 @@
 <?php
 
+use App\Providers\AppServiceProvider;
+use App\Providers\AuthServiceProvider;
+use App\Providers\Filament\AdminPanelProvider;
+use App\Providers\FortifyServiceProvider;
+use App\Providers\JetstreamServiceProvider;
+use App\Providers\LfsServiceProvider;
+use App\Providers\RepositoryDriverServiceProvider;
+
 return [
-    App\Providers\AppServiceProvider::class,
-    App\Providers\Filament\AdminPanelProvider::class,
-    App\Providers\FortifyServiceProvider::class,
-    App\Providers\JetstreamServiceProvider::class,
+    AppServiceProvider::class,
+    AuthServiceProvider::class,
+    AdminPanelProvider::class,
+    FortifyServiceProvider::class,
+    JetstreamServiceProvider::class,
+    LfsServiceProvider::class,
+    RepositoryDriverServiceProvider::class,
 ];

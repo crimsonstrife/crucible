@@ -14,17 +14,8 @@ use Laravel\Jetstream\Jetstream;
 
 class JetstreamServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
+    public function register(): void {}
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configurePermissions();
@@ -38,24 +29,36 @@ class JetstreamServiceProvider extends ServiceProvider
         Jetstream::deleteUsersUsing(DeleteUser::class);
     }
 
-    /**
-     * Configure the roles and permissions that are available within the application.
-     */
     protected function configurePermissions(): void
     {
-        Jetstream::defaultApiTokenPermissions(['read']);
+        Jetstream::defaultApiTokenPermissions(['repositories:read']);
+
+        Jetstream::permissions([
+            'repositories:read',
+            'repositories:write',
+            'repositories:delete',
+            'lfs:read',
+            'lfs:write',
+        ]);
 
         Jetstream::role('admin', 'Administrator', [
-            'create',
-            'read',
-            'update',
-            'delete',
-        ])->description('Administrator users can perform any action.');
+            'repositories:read',
+            'repositories:write',
+            'repositories:delete',
+            'lfs:read',
+            'lfs:write',
+        ])->description('Administrator users can manage all repositories.');
 
         Jetstream::role('editor', 'Editor', [
-            'read',
-            'create',
-            'update',
-        ])->description('Editor users have the ability to read, create, and update.');
+            'repositories:read',
+            'repositories:write',
+            'lfs:read',
+            'lfs:write',
+        ])->description('Editors can read and write to repositories.');
+
+        Jetstream::role('viewer', 'Viewer', [
+            'repositories:read',
+            'lfs:read',
+        ])->description('Viewers have read-only access.');
     }
 }

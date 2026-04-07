@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Traits\HasPermissionSets;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -15,40 +16,30 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Jetstream\HasTeams;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasPermissions;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {
-    use HasApiTokens;
+    use HasApiTokens,
+        HasFactory,
+        HasPermissionSets,
+        HasPermissions,
+        HasProfilePhoto,
+        HasRoles,
+        HasTeams,
+        HasUuids,
+        Notifiable,
+        TwoFactorAuthenticatable;
 
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory;
-    use HasUuids;
-    use HasProfilePhoto;
-    use HasRoles;
-    use HasTeams;
-    use Notifiable;
-    use TwoFactorAuthenticatable;
-
-    public $incrementing = false;
-    protected $keyType = 'string';
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
+        'forge_user_id',
+        'email_notifications',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
@@ -56,53 +47,49 @@ class User extends Authenticatable implements FilamentUser
         'two_factor_secret',
     ];
 
-    /**
-     * The accessors to append to the model's array form.
-     *
-     * @var array<int, string>
-     */
     protected $appends = [
         'profile_photo_url',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'email_verified_at'     => 'datetime',
+            'password'              => 'hashed',
+            'email_notifications'   => 'boolean',
         ];
     }
 
     public function canAccessPanel(Panel $panel): bool
     {
-        if ($panel->getId() === 'admin') {
-            return $this->can('access-admin-panel');
-        }
-
-        return true;
-    }
-
-    public function ownedOrganizations(): HasMany
-    {
-        return $this->hasMany(Organization::class, 'owner_id');
+        return $this->hasPermissionTo('is-super-admin', 'web') || $this->hasPermissionTo('is-admin', 'web');
     }
 
     public function organizations(): BelongsToMany
     {
-        return $this->belongsToMany(Organization::class)
+        return $this->belongsToMany(Organization::class, 'organization_members')
             ->withPivot('role')
-            ->withTimestamps();
+            ->withTimestamps()
+            ->using(OrganizationMember::class);
     }
 
-    public function repositories(): BelongsToMany
+    public function ownedRepositories(): HasMany
     {
-        return $this->belongsToMany(Repository::class)
-            ->withPivot('role')
-            ->withTimestamps();
+        return $this->hasMany(Repository::class, 'owner_id');
+    }
+
+    public function sshKeys(): HasMany
+    {
+        return $this->hasMany(SshKey::class);
+    }
+
+    public function fileLocks(): HasMany
+    {
+        return $this->hasMany(FileLock::class, 'locked_by');
+    }
+
+    public function connectedApps(): HasMany
+    {
+        return $this->hasMany(ConnectedApp::class);
     }
 }
