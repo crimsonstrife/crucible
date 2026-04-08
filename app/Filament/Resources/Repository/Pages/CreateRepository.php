@@ -12,6 +12,6 @@ class CreateRepository extends CreateRecord
 
     protected function afterCreate(): void
     {
-        InitializeRepositoryJob::dispatch($this->record);
+        InitializeRepositoryJob::dispatch($this->record, $this->record->remote_url);
     }
 }
