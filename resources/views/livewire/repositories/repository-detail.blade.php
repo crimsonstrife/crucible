@@ -44,6 +44,40 @@
         </div>
     @endunless
 
+    {{-- LFS sync status banner --}}
+    @if ($repository->lfs_sync_status && ! in_array($repository->lfs_sync_status, ['synced', 'skipped']))
+        @if (in_array($repository->lfs_sync_status, ['pending', 'fetching', 'importing']))
+            <div class="alert alert-info d-flex align-items-start gap-3 mb-4" role="alert" wire:poll.5s>
+                <div class="spinner-border spinner-border-sm text-info-emphasis flex-shrink-0 mt-1" role="status">
+                    <span class="visually-hidden">Syncing&hellip;</span>
+                </div>
+                <div>
+                    <strong>LFS objects syncing&hellip;</strong>
+                    <p class="mb-0 small">
+                        @if ($repository->lfs_sync_status === 'pending')
+                            Waiting for the LFS import job to start.
+                        @elseif ($repository->lfs_sync_status === 'fetching')
+                            Fetching LFS objects from the remote repository.
+                        @else
+                            Importing LFS objects into Crucible storage.
+                        @endif
+                        Large files may take a while. This banner will disappear when complete.
+                    </p>
+                </div>
+            </div>
+        @elseif ($repository->lfs_sync_status === 'failed')
+            <div class="alert alert-warning d-flex align-items-start gap-3 mb-4" role="alert">
+                <x-octicon name="alert" size="24" class="text-warning-emphasis flex-shrink-0 mt-1" />
+                <div>
+                    <strong>LFS sync failed</strong>
+                    <p class="mb-0 small">Some Git LFS objects could not be fetched from the remote. Check that
+                        <code>git-lfs</code> is installed, the remote URL is accessible, and the queue worker is running.
+                        Trigger a manual sync to retry.</p>
+                </div>
+            </div>
+        @endif
+    @endif
+
     <div class="row g-4">
 
         {{-- Left column: Clone + Branches --}}

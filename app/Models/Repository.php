@@ -39,6 +39,7 @@ class Repository extends BaseModel
         'auto_sync',
         'size_kb',
         'lfs_size_kb',
+        'lfs_sync_status',
         'engine_type',
     ];
 
