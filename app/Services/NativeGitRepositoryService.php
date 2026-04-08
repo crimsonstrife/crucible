@@ -1030,6 +1030,117 @@ class NativeGitRepositoryService
         }
     }
 
+    /**
+     * Check whether the git-lfs binary is available on this system.
+     */
+    public function isLfsInstalled(): bool
+    {
+        static $installed = null;
+
+        if ($installed !== null) {
+            return $installed;
+        }
+
+        try {
+            $process = new Process(['git', 'lfs', 'version']);
+            $process->setTimeout(10);
+            $process->run();
+
+            $installed = $process->isSuccessful();
+        } catch (\Throwable) {
+            $installed = false;
+        }
+
+        return $installed;
+    }
+
+    /**
+     * Fetch all LFS objects from a remote into the bare repo's LFS cache.
+     */
+    public function fetchLfsObjects(Repository $repository, string $remoteUrl): void
+    {
+        $path = $this->pathFor($repository);
+        $remoteUrl = self::normalizeRemoteUrl($remoteUrl);
+
+        // Ensure the origin remote points to the current URL.
+        try {
+            $this->runAndCapture(['git', '--git-dir', $path, 'remote', 'get-url', 'origin']);
+            $this->run(['git', '--git-dir', $path, 'remote', 'set-url', 'origin', $remoteUrl]);
+        } catch (RuntimeException) {
+            $this->run(['git', '--git-dir', $path, 'remote', 'add', 'origin', $remoteUrl]);
+        }
+
+        $command = ['git', '--git-dir', $path, 'lfs', 'fetch', '--all', 'origin'];
+
+        Log::debug('[NativeGit] running: '.implode(' ', $this->redactCommand($command)));
+
+        $process = new Process($command);
+        $process->setTimeout(600);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            throw new RuntimeException(
+                'git lfs fetch failed: '.$process->getErrorOutput(),
+            );
+        }
+    }
+
+    /**
+     * Scan the bare repo's LFS object cache and return all cached objects.
+     *
+     * @return array<int, array{oid: string, size: int}>
+     */
+    public function listCachedLfsObjects(Repository $repository): array
+    {
+        $lfsDir = $this->pathFor($repository).'/lfs/objects';
+
+        if (! is_dir($lfsDir)) {
+            return [];
+        }
+
+        $objects = [];
+
+        // LFS cache structure: lfs/objects/{oid[0:2]}/{oid[2:4]}/{oid}
+        foreach (glob($lfsDir.'/*/*') as $subdir) {
+            if (! is_dir($subdir)) {
+                continue;
+            }
+
+            foreach (glob($subdir.'/*') as $file) {
+                if (! is_file($file)) {
+                    continue;
+                }
+
+                $oid = basename($file);
+
+                if (! preg_match('/\A[a-f0-9]{64}\z/i', $oid)) {
+                    continue;
+                }
+
+                $objects[] = [
+                    'oid' => strtolower($oid),
+                    'size' => (int) filesize($file),
+                ];
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
+     * Return the filesystem path to a cached LFS object in the bare repo.
+     */
+    public function lfsObjectCachePath(Repository $repository, string $oid): string
+    {
+        return sprintf(
+            '%s/lfs/objects/%s/%s/%s',
+            $this->pathFor($repository),
+            substr($oid, 0, 2),
+            substr($oid, 2, 2),
+            $oid,
+        );
+    }
+
     public function lfsTrackedPaths(Repository $repository, array $paths, ?string $ref = null): array
     {
         $paths = collect($paths)
