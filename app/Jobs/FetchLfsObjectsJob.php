@@ -28,10 +28,13 @@ class FetchLfsObjectsJob implements ShouldQueue
     ): void {
         $repository = $this->repository->fresh(['organization']) ?? $this->repository->loadMissing('organization');
 
+        Log::info('[FetchLfsObjectsJob] started', ['repo' => $repository->id]);
+
         if (! $nativeGit->isLfsInstalled()) {
             Log::warning('[FetchLfsObjectsJob] git-lfs not installed, skipping', [
                 'repo' => $repository->id,
             ]);
+            $this->setStatus($repository, 'skipped');
 
             return;
         }
@@ -39,8 +42,15 @@ class FetchLfsObjectsJob implements ShouldQueue
         $remoteUrl = $repository->remote_url;
 
         if (! $remoteUrl) {
+            Log::warning('[FetchLfsObjectsJob] no remote_url set, skipping', [
+                'repo' => $repository->id,
+            ]);
+            $this->setStatus($repository, 'skipped');
+
             return;
         }
+
+        $this->setStatus($repository, 'fetching');
 
         // Pull LFS objects from the remote into the bare repo's cache.
         try {
@@ -50,6 +60,7 @@ class FetchLfsObjectsJob implements ShouldQueue
                 'repo' => $repository->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->setStatus($repository, 'failed');
 
             return;
         }
@@ -57,9 +68,21 @@ class FetchLfsObjectsJob implements ShouldQueue
         // Discover cached LFS objects and import any that Crucible doesn't have yet.
         $cachedObjects = $nativeGit->listCachedLfsObjects($repository);
 
+        Log::info('[FetchLfsObjectsJob] found cached LFS objects', [
+            'repo' => $repository->id,
+            'count' => count($cachedObjects),
+        ]);
+
         if ($cachedObjects === []) {
+            Log::info('[FetchLfsObjectsJob] no LFS objects to import', [
+                'repo' => $repository->id,
+            ]);
+            $this->setStatus($repository, 'synced');
+
             return;
         }
+
+        $this->setStatus($repository, 'importing');
 
         $existingOids = $repository->lfsObjects()->pluck('oid')->flip();
         $importedCount = 0;
@@ -72,6 +95,12 @@ class FetchLfsObjectsJob implements ShouldQueue
             $filePath = $nativeGit->lfsObjectCachePath($repository, $obj['oid']);
 
             if (! is_file($filePath)) {
+                Log::warning('[FetchLfsObjectsJob] cached LFS object file missing', [
+                    'repo' => $repository->id,
+                    'oid' => $obj['oid'],
+                    'expected_path' => $filePath,
+                ]);
+
                 continue;
             }
 
@@ -95,7 +124,10 @@ class FetchLfsObjectsJob implements ShouldQueue
 
         // Update repository LFS metadata.
         $totalLfsSize = $repository->lfsObjects()->sum('size');
-        $updates = ['lfs_size_kb' => (int) ceil($totalLfsSize / 1024)];
+        $updates = [
+            'lfs_size_kb' => (int) ceil($totalLfsSize / 1024),
+            'lfs_sync_status' => 'synced',
+        ];
 
         if ($totalLfsSize > 0 && ! $repository->lfs_enabled) {
             $updates['lfs_enabled'] = true;
@@ -110,5 +142,24 @@ class FetchLfsObjectsJob implements ShouldQueue
             'total_lfs_objects' => count($cachedObjects),
             'lfs_size_kb' => $updates['lfs_size_kb'],
         ]);
+    }
+
+    /**
+     * Handle a job failure (uncaught exception / timeout).
+     */
+    public function failed(?\Throwable $exception): void
+    {
+        Log::error('[FetchLfsObjectsJob] job failed with exception', [
+            'repo' => $this->repository->id,
+            'error' => $exception?->getMessage(),
+        ]);
+
+        $this->setStatus($this->repository, 'failed');
+    }
+
+    protected function setStatus(Repository $repository, string $status): void
+    {
+        $repository->forceFill(['lfs_sync_status' => $status]);
+        $repository->saveWithoutTouch();
     }
 }

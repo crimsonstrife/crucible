@@ -36,6 +36,10 @@ class InitializeRepositoryJob implements ShouldQueue
             $repository->saveWithoutTouch();
 
             if ($this->cloneFrom || $repository->remote_url) {
+                $repository->forceFill(['lfs_sync_status' => 'pending']);
+                $repository->saveWithoutTouch();
+
+                Log::info('[InitializeRepositoryJob] dispatching FetchLfsObjectsJob', ['repo' => $repository->id]);
                 FetchLfsObjectsJob::dispatch($repository);
             }
         }
