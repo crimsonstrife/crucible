@@ -1059,6 +1059,10 @@ class NativeGitRepositoryService
 
     /**
      * Fetch all LFS objects from a remote into the bare repo's LFS cache.
+     *
+     * The timeout is generous (3600s / 1 hour) because large game repos can
+     * have tens of thousands of LFS objects.  git-lfs fetch is resumable —
+     * objects already in the cache are skipped on subsequent runs.
      */
     public function fetchLfsObjects(Repository $repository, string $remoteUrl): void
     {
@@ -1078,7 +1082,7 @@ class NativeGitRepositoryService
         Log::debug('[NativeGit] running: '.implode(' ', $this->redactCommand($command)));
 
         $process = new Process($command);
-        $process->setTimeout(600);
+        $process->setTimeout(3600);
         $process->run();
 
         if (! $process->isSuccessful()) {

@@ -14,9 +14,15 @@ class FetchLfsObjectsJob implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 900;
+    /**
+     * Large repos (e.g. game assets) can have tens of thousands of LFS objects.
+     * Allow up to 2 hours for the full fetch + import cycle.
+     */
+    public int $timeout = 7200;
 
-    public int $tries = 2;
+    public int $tries = 3;
+
+    public int $backoff = 30;
 
     public function __construct(
         public readonly Repository $repository,
