@@ -102,6 +102,105 @@ class NativeGitRepositoryServiceTest extends TestCase
         );
     }
 
+    // ── URL normalisation ────────────────────────────────────────────
+
+    public function test_normalize_rewrites_fine_grained_pat_to_x_access_token(): void
+    {
+        $url = 'https://github_pat_abc123@github.com/owner/repo.git';
+
+        $this->assertSame(
+            'https://x-access-token:github_pat_abc123@github.com/owner/repo.git',
+            NativeGitRepositoryService::normalizeRemoteUrl($url),
+        );
+    }
+
+    public function test_normalize_rewrites_classic_pat_to_x_access_token(): void
+    {
+        $url = 'https://ghp_abc123@github.com/owner/repo.git';
+
+        $this->assertSame(
+            'https://x-access-token:ghp_abc123@github.com/owner/repo.git',
+            NativeGitRepositoryService::normalizeRemoteUrl($url),
+        );
+    }
+
+    public function test_normalize_rewrites_gitlab_pat_to_x_access_token(): void
+    {
+        $url = 'https://glpat-abc123@gitlab.com/owner/repo.git';
+
+        $this->assertSame(
+            'https://x-access-token:glpat-abc123@gitlab.com/owner/repo.git',
+            NativeGitRepositoryService::normalizeRemoteUrl($url),
+        );
+    }
+
+    public function test_normalize_leaves_user_pass_format_unchanged(): void
+    {
+        $url = 'https://x-access-token:ghp_abc123@github.com/owner/repo.git';
+
+        $this->assertSame($url, NativeGitRepositoryService::normalizeRemoteUrl($url));
+    }
+
+    public function test_normalize_leaves_plain_https_unchanged(): void
+    {
+        $url = 'https://github.com/owner/repo.git';
+
+        $this->assertSame($url, NativeGitRepositoryService::normalizeRemoteUrl($url));
+    }
+
+    public function test_normalize_leaves_ssh_url_unchanged(): void
+    {
+        $url = 'git@github.com:owner/repo.git';
+
+        $this->assertSame($url, NativeGitRepositoryService::normalizeRemoteUrl($url));
+    }
+
+    public function test_normalize_leaves_regular_username_unchanged(): void
+    {
+        $url = 'https://myuser@bitbucket.org/owner/repo.git';
+
+        $this->assertSame($url, NativeGitRepositoryService::normalizeRemoteUrl($url));
+    }
+
+    public function test_normalize_preserves_port_and_path(): void
+    {
+        $url = 'https://github_pat_xyz@github.com:8443/owner/repo.git';
+
+        $this->assertSame(
+            'https://x-access-token:github_pat_xyz@github.com:8443/owner/repo.git',
+            NativeGitRepositoryService::normalizeRemoteUrl($url),
+        );
+    }
+
+    // ── Credential redaction ────────────────────────────────────────
+
+    public function test_redact_command_strips_credentials_from_url(): void
+    {
+        $command = ['git', 'clone', '--bare', 'https://ghp_secret@github.com/owner/repo.git', '/tmp/repo'];
+
+        $this->assertSame(
+            ['git', 'clone', '--bare', 'https://***@github.com/owner/repo.git', '/tmp/repo'],
+            NativeGitRepositoryService::redactCommand($command),
+        );
+    }
+
+    public function test_redact_command_strips_user_pass_credentials(): void
+    {
+        $command = ['git', 'remote', 'set-url', 'origin', 'https://x-access-token:ghp_secret@github.com/owner/repo.git'];
+
+        $this->assertSame(
+            ['git', 'remote', 'set-url', 'origin', 'https://***@github.com/owner/repo.git'],
+            NativeGitRepositoryService::redactCommand($command),
+        );
+    }
+
+    public function test_redact_command_leaves_plain_urls_unchanged(): void
+    {
+        $command = ['git', 'clone', 'https://github.com/owner/repo.git'];
+
+        $this->assertSame($command, NativeGitRepositoryService::redactCommand($command));
+    }
+
     protected function makeRepository(
         string $organizationSlug = 'studio',
         string $repositorySlug = 'sample-repo',

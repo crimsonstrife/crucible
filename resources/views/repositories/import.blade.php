@@ -56,6 +56,8 @@
                         <div class="form-text">
                             For <strong>private repos</strong>, include a personal access token:<br>
                             <code>https://&lt;token&gt;@github.com/owner/repo.git</code><br>
+                            For GitHub <strong>fine-grained PATs</strong>, either format works:<br>
+                            <code>https://x-access-token:&lt;token&gt;@github.com/owner/repo.git</code><br>
                             The URL (including any token) is stored encrypted.
                         </div>
                     </div>

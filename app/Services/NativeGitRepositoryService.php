@@ -15,6 +15,103 @@ class NativeGitRepositoryService
         protected Filesystem $files,
     ) {}
 
+    /**
+     * Normalize an HTTPS remote URL so that a bare token used as the username
+     * is rewritten to `x-access-token:<token>@host`.
+     *
+     * GitHub fine-grained PATs (github_pat_*) require this format — they fail
+     * with 403 when placed in the username-only position.  Classic PATs (ghp_*)
+     * work either way, but we normalise them too for consistency.
+     *
+     * SSH URLs and URLs that already carry user:pass are returned unchanged.
+     */
+    public static function normalizeRemoteUrl(string $url): string
+    {
+        $parts = parse_url($url);
+
+        // Not an HTTP(S) URL, or no user component → nothing to do.
+        if (! isset($parts['scheme'], $parts['host'], $parts['user'])) {
+            return $url;
+        }
+
+        if (! in_array($parts['scheme'], ['http', 'https'], true)) {
+            return $url;
+        }
+
+        // Already has a password (user:pass format) → leave as-is.
+        if (isset($parts['pass'])) {
+            return $url;
+        }
+
+        $token = $parts['user'];
+
+        // Only rewrite when the username looks like a known token format.
+        $looksLikeToken = str_starts_with($token, 'ghp_')
+            || str_starts_with($token, 'github_pat_')
+            || str_starts_with($token, 'glpat-')
+            || preg_match('/^[a-f0-9]{40,}$/i', $token);
+
+        if (! $looksLikeToken) {
+            return $url;
+        }
+
+        // Rebuild the URL with x-access-token:<token>@ auth.
+        $parts['user'] = 'x-access-token';
+        $parts['pass'] = $token;
+
+        return self::buildUrl($parts);
+    }
+
+    /**
+     * Redact credentials from a git command array for safe logging.
+     *
+     * @param  array<int, string>  $command
+     * @return array<int, string>
+     */
+    public static function redactCommand(array $command): array
+    {
+        return array_map(function (string $arg): string {
+            // Match HTTPS URLs containing userinfo (user:pass@ or user@).
+            return preg_replace(
+                '#(https?://)([^@]+)@#i',
+                '$1***@',
+                $arg,
+            );
+        }, $command);
+    }
+
+    /** Rebuild a URL from parse_url() parts. */
+    private static function buildUrl(array $parts): string
+    {
+        $url = $parts['scheme'] . '://';
+
+        if (isset($parts['user'])) {
+            $url .= $parts['user'];
+            if (isset($parts['pass'])) {
+                $url .= ':' . $parts['pass'];
+            }
+            $url .= '@';
+        }
+
+        $url .= $parts['host'];
+
+        if (isset($parts['port'])) {
+            $url .= ':' . $parts['port'];
+        }
+
+        $url .= $parts['path'] ?? '';
+
+        if (isset($parts['query'])) {
+            $url .= '?' . $parts['query'];
+        }
+
+        if (isset($parts['fragment'])) {
+            $url .= '#' . $parts['fragment'];
+        }
+
+        return $url;
+    }
+
     public function pathFor(Repository $repository): string
     {
         $repository->loadMissing('organization');
@@ -62,7 +159,7 @@ class NativeGitRepositoryService
             'git',
             'clone',
             '--bare',
-            $remote,
+            self::normalizeRemoteUrl($remote),
             $path,
         ]);
 
@@ -78,6 +175,7 @@ class NativeGitRepositoryService
     public function fetchRemote(Repository $repository, string $remoteUrl): void
     {
         $path = $this->pathFor($repository);
+        $remoteUrl = self::normalizeRemoteUrl($remoteUrl);
 
         // Ensure the origin remote points to the current URL (handles URL changes / re-imports).
         try {
@@ -775,7 +873,7 @@ class NativeGitRepositoryService
 
         Log::error('[NativeGitRepositoryService] command failed in dir', [
             'dir'     => $dir,
-            'command' => $command,
+            'command' => self::redactCommand($command),
             'message' => $message,
         ]);
 
@@ -1208,7 +1306,7 @@ class NativeGitRepositoryService
         $message = trim($process->getErrorOutput()) ?: trim($process->getOutput()) ?: 'Git command failed.';
 
         Log::error('[NativeGitRepositoryService] command failed', [
-            'command' => $command,
+            'command' => self::redactCommand($command),
             'message' => $message,
         ]);
 
