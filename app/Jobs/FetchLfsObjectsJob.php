@@ -20,6 +20,7 @@ class FetchLfsObjectsJob implements ShouldQueue
 
     public function __construct(
         public readonly Repository $repository,
+        public readonly ?string $remoteUrl = null,
     ) {}
 
     public function handle(
@@ -39,7 +40,7 @@ class FetchLfsObjectsJob implements ShouldQueue
             return;
         }
 
-        $remoteUrl = $repository->remote_url;
+        $remoteUrl = $this->remoteUrl ?? $repository->remote_url;
 
         if (! $remoteUrl) {
             Log::warning('[FetchLfsObjectsJob] no remote_url set, skipping', [
