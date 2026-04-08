@@ -94,6 +94,8 @@ class RepositoryService
             'default_branch' => $data['default_branch'] ?? 'main',
             'lfs_enabled' => $data['lfs_enabled'] ?? false,
             'forge_project_id' => $data['forge_project_id'] ?? null,
+            'remote_url' => $data['remote_url'] ?? null,
+            'auto_sync' => (bool) ($data['auto_sync'] ?? false),
         ]);
     }
 }

@@ -64,7 +64,7 @@ class SyncRepositoryJob implements ShouldQueue
             $repository->saveWithoutTouch();
 
             Log::info('[SyncRepositoryJob] dispatching FetchLfsObjectsJob', ['repo' => $repository->id]);
-            FetchLfsObjectsJob::dispatch($repository);
+            FetchLfsObjectsJob::dispatch($repository, $remoteUrl);
         }
 
         Log::info('[SyncRepositoryJob] completed', ['repo' => $repository->id]);
