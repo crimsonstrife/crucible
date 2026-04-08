@@ -34,6 +34,10 @@ class InitializeRepositoryJob implements ShouldQueue
             ]);
 
             $repository->saveWithoutTouch();
+
+            if ($this->cloneFrom) {
+                FetchLfsObjectsJob::dispatch($repository);
+            }
         }
 
         Log::info('[InitializeRepositoryJob] completed', ['repo' => $repository->id]);
