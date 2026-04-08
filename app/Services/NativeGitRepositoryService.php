@@ -1032,13 +1032,16 @@ class NativeGitRepositoryService
 
     /**
      * Check whether the git-lfs binary is available on this system.
+     *
+     * Only caches a positive result so that installing git-lfs at runtime
+     * is picked up without restarting the queue worker.
      */
     public function isLfsInstalled(): bool
     {
-        static $installed = null;
+        static $installed = false;
 
-        if ($installed !== null) {
-            return $installed;
+        if ($installed) {
+            return true;
         }
 
         try {
