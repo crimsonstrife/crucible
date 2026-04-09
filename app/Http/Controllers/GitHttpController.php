@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Contracts\RepositoryDriverInterface;
 use App\Drivers\NativeGitDriver;
 use App\Enums\RepositoryVisibility;
+use App\Http\Controllers\Concerns\InteractsWithGitTransport;
 use App\Models\Organization;
 use App\Models\Repository;
 use App\Services\NativeGitRepositoryService;
@@ -28,6 +29,8 @@ use RuntimeException;
  */
 class GitHttpController extends Controller
 {
+    use InteractsWithGitTransport;
+
     public function __construct(
         protected RepositoryDriverInterface $repositoryDriver,
         protected NativeGitRepositoryService $nativeGit,
@@ -239,31 +242,4 @@ class GitHttpController extends Controller
         ]);
     }
 
-    /**
-     * Return the raw request body, decoding Content-Encoding if present.
-     *
-     * Git clients frequently gzip upload-pack / receive-pack request bodies.
-     * `git upload-pack --stateless-rpc` does not understand gzip, so we must
-     * decode here before piping to stdin, otherwise git reports
-     * "fatal: protocol error: bad line length character".
-     */
-    protected function decodedRequestBody(Request $request): string
-    {
-        $body = $request->getContent();
-        $encoding = strtolower(trim((string) $request->header('Content-Encoding', '')));
-
-        if ($encoding === '' || $encoding === 'identity') {
-            return $body;
-        }
-
-        if ($encoding === 'gzip' || $encoding === 'x-gzip') {
-            $decoded = @gzdecode($body);
-            if ($decoded === false) {
-                abort(400, 'Malformed gzip-encoded git request body.');
-            }
-            return $decoded;
-        }
-
-        abort(415, "Unsupported Content-Encoding: {$encoding}");
-    }
 }

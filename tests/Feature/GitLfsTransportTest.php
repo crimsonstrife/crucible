@@ -67,6 +67,125 @@ class GitLfsTransportTest extends TestCase
         $response->assertSeeText('native git backend is active');
     }
 
+    public function test_transport_lfs_upload_decodes_gzip_encoded_request_bodies(): void
+    {
+        [$owner, $repository, $password] = $this->createRepository();
+
+        $this->app->bind(RepositoryDriverInterface::class, NativeGitDriver::class);
+
+        $payload = 'a binary-ish LFS object payload';
+        $oid = hash('sha256', $payload);
+        $basicAuth = $this->basicAuthHeader($owner->email, $password);
+
+        $batchResponse = $this->withHeaders([
+            'Authorization' => $basicAuth,
+            'Accept' => 'application/vnd.git-lfs+json',
+        ])->postJson(sprintf(
+            '/%s/%s.git/info/lfs/objects/batch',
+            $repository->organization->slug,
+            $repository->slug,
+        ), [
+            'operation' => 'upload',
+            'objects' => [
+                [
+                    'oid' => $oid,
+                    'size' => strlen($payload),
+                ],
+            ],
+        ]);
+
+        $batchResponse->assertOk();
+        $uploadPath = parse_url($batchResponse->json('objects.0.actions.upload.href'), PHP_URL_PATH);
+
+        $gzipped = gzencode($payload);
+
+        $uploadResponse = $this->call(
+            'PUT',
+            $uploadPath,
+            [],
+            [],
+            [],
+            [
+                'HTTP_AUTHORIZATION' => $basicAuth,
+                'HTTP_CONTENT_ENCODING' => 'gzip',
+                'CONTENT_TYPE' => 'application/octet-stream',
+                'CONTENT_LENGTH' => strlen($gzipped),
+            ],
+            $gzipped,
+        );
+
+        $uploadResponse->assertOk();
+
+        $downloadBatchResponse = $this->withHeaders([
+            'Authorization' => $basicAuth,
+            'Accept' => 'application/vnd.git-lfs+json',
+        ])->postJson(sprintf(
+            '/%s/%s.git/info/lfs/objects/batch',
+            $repository->organization->slug,
+            $repository->slug,
+        ), [
+            'operation' => 'download',
+            'objects' => [
+                [
+                    'oid' => $oid,
+                    'size' => strlen($payload),
+                ],
+            ],
+        ]);
+
+        $downloadBatchResponse->assertOk();
+        $downloadPath = parse_url($downloadBatchResponse->json('objects.0.actions.download.href'), PHP_URL_PATH);
+
+        $downloadResponse = $this->withHeaders([
+            'Authorization' => $basicAuth,
+        ])->get($downloadPath);
+
+        $downloadResponse->assertOk();
+        $downloadResponse->assertHeader('Content-Length', (string) strlen($payload));
+        $this->assertSame($payload, $downloadResponse->streamedContent());
+    }
+
+    public function test_transport_lfs_upload_rejects_unsupported_content_encoding(): void
+    {
+        [$owner, $repository, $password] = $this->createRepository();
+
+        $this->app->bind(RepositoryDriverInterface::class, NativeGitDriver::class);
+
+        $oid = str_repeat('c', 64);
+        $basicAuth = $this->basicAuthHeader($owner->email, $password);
+
+        $this->withHeaders([
+            'Authorization' => $basicAuth,
+            'Accept' => 'application/vnd.git-lfs+json',
+        ])->postJson(sprintf(
+            '/%s/%s.git/info/lfs/objects/batch',
+            $repository->organization->slug,
+            $repository->slug,
+        ), [
+            'operation' => 'upload',
+            'objects' => [
+                ['oid' => $oid, 'size' => 4],
+            ],
+        ])->assertOk();
+
+        $uploadResponse = $this->call(
+            'PUT',
+            sprintf('/%s/%s.git/info/lfs/objects/%s', $repository->organization->slug, $repository->slug, $oid),
+            [],
+            [],
+            [],
+            [
+                'HTTP_AUTHORIZATION' => $basicAuth,
+                'HTTP_CONTENT_ENCODING' => 'br',
+                'CONTENT_TYPE' => 'application/octet-stream',
+                'CONTENT_LENGTH' => 4,
+            ],
+            'test',
+        );
+
+        $uploadResponse->assertStatus(415);
+    }
+
     public function test_transport_lfs_objects_can_be_uploaded_and_downloaded_over_repo_urls(): void
     {
         [$owner, $repository, $password] = $this->createRepository();

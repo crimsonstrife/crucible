@@ -118,19 +118,13 @@ class LfsBatchController extends Controller
 
         $this->authorize('push', $repository);
 
-        $size = (int) ($request->header('Content-Length') ?? 0);
-
-        if ($size < 0) {
-            return response()->json([
-                'message' => 'Invalid Content-Length header.',
-            ], 422);
-        }
+        $body = $this->decodedRequestBody($request);
 
         $this->lfsService->store(
             $repository,
             $oid,
-            $size,
-            $request->getContent(true),
+            strlen($body),
+            $body,
         );
 
         return response('', 200, ['Content-Length' => '0']);
@@ -158,21 +152,13 @@ class LfsBatchController extends Controller
             return $challenge;
         }
 
-        $size = (int) ($request->header('Content-Length') ?? 0);
-
-        if ($size < 0) {
-            return response()->json([
-                'message' => 'Invalid Content-Length header.',
-            ], 422, [
-                'Content-Type' => 'application/vnd.git-lfs+json',
-            ]);
-        }
+        $body = $this->decodedRequestBody($request);
 
         $this->lfsService->store(
             $repository,
             $oid,
-            $size,
-            $request->getContent(true),
+            strlen($body),
+            $body,
         );
 
         return response('', 200, ['Content-Length' => '0']);
