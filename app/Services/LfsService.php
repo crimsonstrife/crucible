@@ -290,15 +290,18 @@ class LfsService
     }
 
     /**
-     * Load the OID → tracked path map for this repository, or an empty array
-     * when the NativeGitRepositoryService is unavailable (e.g. in tests that
-     * construct LfsService directly without the helper).
+     * Load the OID → tracked path map for this repository.
+     *
+     * Resolves NativeGitRepositoryService from the container when it was not
+     * injected — Laravel's auto-resolution can skip nullable-with-default
+     * constructor parameters, leaving $this->nativeGit as null even though a
+     * binding exists.
      *
      * @return array<string, string>
      */
     protected function lfsOidPathMap(Repository $repository): array
     {
-        return $this->nativeGit?->lfsOidPathMap($repository) ?? [];
+        return $this->nativeGit ??= app(NativeGitRepositoryService::class)->lfsOidPathMap($repository);
     }
 
     protected function guardOid(string $oid): void
