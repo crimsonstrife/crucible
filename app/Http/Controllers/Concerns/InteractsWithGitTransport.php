@@ -6,6 +6,7 @@ use App\Drivers\NativeGitDriver;
 use App\Enums\RepositoryVisibility;
 use App\Models\Organization;
 use App\Models\Repository;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 
@@ -67,5 +68,36 @@ trait InteractsWithGitTransport
             501,
             'Git transport is only available when the native git backend is active.',
         );
+    }
+
+    /**
+     * Return the raw request body, decoding Content-Encoding if present.
+     *
+     * Git clients frequently gzip upload-pack / receive-pack request bodies,
+     * and the same encoding can be applied to LFS object uploads by clients
+     * or upstream proxies. `git upload-pack --stateless-rpc` does not
+     * understand gzip, and the LFS backend sanity-checks the stored byte
+     * count against the expected size — both paths need an already-decoded
+     * buffer, otherwise git reports "fatal: protocol error: bad line length
+     * character" or the LFS upload fails with a size mismatch.
+     */
+    protected function decodedRequestBody(Request $request): string
+    {
+        $body = $request->getContent();
+        $encoding = strtolower(trim((string) $request->header('Content-Encoding', '')));
+
+        if ($encoding === '' || $encoding === 'identity') {
+            return $body;
+        }
+
+        if ($encoding === 'gzip' || $encoding === 'x-gzip') {
+            $decoded = @gzdecode($body);
+            if ($decoded === false) {
+                abort(400, 'Malformed gzip-encoded request body.');
+            }
+            return $decoded;
+        }
+
+        abort(415, "Unsupported Content-Encoding: {$encoding}");
     }
 }
