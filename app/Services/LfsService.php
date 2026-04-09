@@ -180,6 +180,43 @@ class LfsService
     }
 
     /**
+     * Apply a named engine template to a repository, creating LFS policies for
+     * each template pattern that does not already exist on the repository.
+     *
+     * @return array{created: list<\App\Models\RepositoryLfsPolicy>, skipped: int, total: int}
+     */
+    public function applyTemplate(Repository $repository, string $template): array
+    {
+        $entries = GameEngineTemplates::get($template);
+
+        if ($entries === null) {
+            throw ValidationException::withMessages([
+                'template' => "Unknown template \"{$template}\".",
+            ]);
+        }
+
+        $existingPatterns = $repository->lfsPolicies()->pluck('pattern')->all();
+        $created = [];
+
+        foreach ($entries as $entry) {
+            if (in_array($entry['pattern'], $existingPatterns, true)) {
+                continue;
+            }
+
+            $created[] = $repository->lfsPolicies()->create([
+                'pattern'     => $entry['pattern'],
+                'description' => $entry['description'],
+            ]);
+        }
+
+        return [
+            'created' => $created,
+            'skipped' => count($entries) - count($created),
+            'total'   => count($entries),
+        ];
+    }
+
+    /**
      * Generate .gitattributes content from a repository's LFS policies.
      */
     public function generateGitattributes(Repository $repository): string

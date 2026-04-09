@@ -57,6 +57,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('repositories.collaborators.destroy');
             Route::get('/repositories/{repository:slug}/lfs', [LfsStorageController::class, 'index'])
                 ->name('repositories.lfs.dashboard');
+            Route::post('/repositories/{repository:slug}/lfs/apply-template', [LfsStorageController::class, 'applyTemplate'])
+                ->name('repositories.lfs.apply-template');
             Route::get('/repositories/{repository:slug}/locks', [FileLockController::class, 'index'])
                 ->name('repositories.locks.index');
             Route::delete('/repositories/{repository:slug}/locks/{fileLock}', [FileLockController::class, 'destroy'])

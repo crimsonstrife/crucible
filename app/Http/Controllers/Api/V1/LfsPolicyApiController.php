@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\Repository;
 use App\Models\RepositoryLfsPolicy;
+use App\Services\LfsService;
 use App\Support\GameEngineTemplates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,7 +63,7 @@ class LfsPolicyApiController extends Controller
      * Applies a named engine template (unreal, unity, godot, general),
      * creating LFS policies for all patterns in the template.
      */
-    public function applyTemplate(Request $request, Organization $organization, Repository $repository): JsonResponse
+    public function applyTemplate(Request $request, Organization $organization, Repository $repository, LfsService $lfsService): JsonResponse
     {
         $this->authorize('update', $repository);
 
@@ -70,31 +71,13 @@ class LfsPolicyApiController extends Controller
             'template' => ['required', 'string', 'in:'.implode(',', GameEngineTemplates::available())],
         ]);
 
-        $entries = GameEngineTemplates::get($validated['template']);
-
-        if ($entries === null) {
-            abort(422, 'Unknown template.');
-        }
-
-        $existingPatterns = $repository->lfsPolicies()->pluck('pattern')->all();
-        $created = [];
-
-        foreach ($entries as $entry) {
-            if (in_array($entry['pattern'], $existingPatterns, true)) {
-                continue;
-            }
-
-            $created[] = $repository->lfsPolicies()->create([
-                'pattern'     => $entry['pattern'],
-                'description' => $entry['description'],
-            ]);
-        }
+        $result = $lfsService->applyTemplate($repository, $validated['template']);
 
         return response()->json([
-            'message'  => count($created).' LFS policies created from "'.$validated['template'].'" template.',
-            'created'  => count($created),
-            'skipped'  => count($entries) - count($created),
-            'data'     => $created,
+            'message'  => count($result['created']).' LFS policies created from "'.$validated['template'].'" template.',
+            'created'  => count($result['created']),
+            'skipped'  => $result['skipped'],
+            'data'     => $result['created'],
         ], 201);
     }
 

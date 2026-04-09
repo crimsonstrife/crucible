@@ -23,6 +23,31 @@
             @endif
         </div>
 
+        @if (session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if (session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
         <div class="row g-4 mb-4">
             {{-- Storage overview cards --}}
             <div class="col-md-4">
@@ -187,20 +212,42 @@
                     @endif
                 </div>
 
-                {{-- Available templates --}}
+                {{-- Engine templates --}}
                 <div class="card shadow-sm mb-4">
                     <div class="card-header">
                         <h6 class="mb-0 fw-semibold">Engine Templates</h6>
                     </div>
-                    <div class="card-body small text-muted">
-                        <p>Apply engine-specific LFS and lock policies via the API:</p>
-                        <code class="d-block mb-2">POST /api/v1/{org}/{repo}/lfs-policies/apply-template</code>
-                        <p class="mb-1">Available templates:</p>
-                        <ul class="mb-0">
-                            @foreach ($templates as $template)
-                                <li><code>{{ $template }}</code></li>
-                            @endforeach
-                        </ul>
+                    <div class="card-body">
+                        @can('update', $repository)
+                            <p class="small text-muted mb-3">
+                                Apply a curated set of LFS tracking patterns for a specific engine. Existing patterns are preserved.
+                            </p>
+                            <form
+                                method="POST"
+                                action="{{ route('repositories.lfs.apply-template', [$organization, $repository]) }}"
+                                onsubmit="return confirm('Apply this template to the repository? Existing LFS policies will be preserved.');"
+                            >
+                                @csrf
+                                <div class="mb-3">
+                                    <label for="lfs-template-select" class="form-label small fw-semibold">Template</label>
+                                    <select id="lfs-template-select" name="template" class="form-select form-select-sm" required>
+                                        @foreach ($templates as $template)
+                                            <option value="{{ $template }}">{{ \Illuminate\Support\Str::headline($template) }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm w-100">
+                                    <x-octicon name="check" size="14" /> Apply Template
+                                </button>
+                            </form>
+                        @else
+                            <p class="small text-muted mb-2">Available templates:</p>
+                            <ul class="small mb-0">
+                                @foreach ($templates as $template)
+                                    <li><code>{{ $template }}</code></li>
+                                @endforeach
+                            </ul>
+                        @endcan
                     </div>
                 </div>
             </div>
