@@ -1148,6 +1148,61 @@ class NativeGitRepositoryService
         );
     }
 
+    /**
+     * Return a map of LFS object OID → tracked file path for this repository.
+     *
+     * Uses `git lfs ls-files --all --long` so historical OIDs (from any ref)
+     * are included, not just the current HEAD.  Returns an empty array when
+     * git-lfs is not installed or the command fails.
+     *
+     * @return array<string, string>
+     */
+    public function lfsOidPathMap(Repository $repository): array
+    {
+        if (! $this->isLfsInstalled()) {
+            return [];
+        }
+
+        try {
+            $output = $this->runAndCapture([
+                'git',
+                '--git-dir',
+                $this->pathFor($repository),
+                'lfs',
+                'ls-files',
+                '--all',
+                '--long',
+            ]);
+        } catch (RuntimeException) {
+            return [];
+        }
+
+        $map = [];
+
+        foreach (preg_split('/\R/', $output) ?: [] as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            // Format: "<oid> <status> <path>" where status is "*" (present) or "-" (missing).
+            if (preg_match('/^([a-f0-9]{64})\s+[-*]\s+(.+)$/i', $line, $matches) !== 1) {
+                continue;
+            }
+
+            $oid = strtolower($matches[1]);
+
+            // Keep the first path seen for an OID — identical content may live at multiple
+            // paths, but any path with the same extension yields the same mime type.
+            if (! isset($map[$oid])) {
+                $map[$oid] = $matches[2];
+            }
+        }
+
+        return $map;
+    }
+
     public function lfsTrackedPaths(Repository $repository, array $paths, ?string $ref = null): array
     {
         $paths = collect($paths)
