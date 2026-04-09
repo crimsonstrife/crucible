@@ -131,7 +131,6 @@ class LfsBatchController extends Controller
             $oid,
             $size,
             $request->getContent(true),
-            $request->header('Content-Type'),
         );
 
         return response('', 200, ['Content-Length' => '0']);
@@ -174,7 +173,6 @@ class LfsBatchController extends Controller
             $oid,
             $size,
             $request->getContent(true),
-            $request->header('Content-Type'),
         );
 
         return response('', 200, ['Content-Length' => '0']);
