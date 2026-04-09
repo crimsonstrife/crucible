@@ -13,6 +13,16 @@ use Illuminate\Validation\ValidationException;
 
 class LfsService
 {
+    /**
+     * Per-instance cache of OID → tracked path maps, keyed by repository id.
+     * Populated lazily by {@see lfsOidPathMap()} so callers that loop over
+     * many objects (e.g. FetchLfsObjectsJob) only shell out to
+     * `git lfs ls-files` once per repository.
+     *
+     * @var array<string, array<string, string>>
+     */
+    protected array $oidPathMapCache = [];
+
     public function __construct(
         protected LfsBackendInterface $backend,
         protected LfsSettings $settings,
@@ -73,14 +83,49 @@ class LfsService
 
         $this->backend->store($oid, $size, $stream);
 
+        $resolvedMime = $this->resolveStoredMimeType($repository, $oid, $mimeType);
+
         return $repository->lfsObjects()->updateOrCreate(
             ['oid' => $oid],
             [
                 'size' => max($size, $this->backend->size($oid)),
-                'mime_type' => $mimeType,
+                'mime_type' => $resolvedMime,
                 'storage_path' => $this->storagePathFor($oid),
             ],
         );
+    }
+
+    /**
+     * Resolve the mime type to persist for a newly stored object.
+     *
+     * - A non-generic value explicitly passed by the caller wins.
+     * - Otherwise, try to derive one from the tracked git path for this OID.
+     * - Otherwise, keep the caller's value (even if generic or null) so the
+     *   display-time resolver in storageStats()/largestObjects() can take
+     *   another pass once the refs containing this OID land.
+     */
+    protected function resolveStoredMimeType(
+        Repository $repository,
+        string $oid,
+        ?string $callerMimeType,
+    ): ?string {
+        $generic = 'application/octet-stream';
+
+        if (filled($callerMimeType) && $callerMimeType !== $generic) {
+            return $callerMimeType;
+        }
+
+        $path = $this->cachedOidPathMap($repository)[$oid] ?? null;
+
+        if ($path !== null) {
+            $derived = MimeDetector::mimeFromExtension($path);
+
+            if ($derived !== null) {
+                return $derived;
+            }
+        }
+
+        return $callerMimeType;
     }
 
     public function download(Repository $repository, string $oid): ?array
@@ -176,6 +221,43 @@ class LfsService
                 'code' => $code,
                 'message' => $message,
             ],
+        ];
+    }
+
+    /**
+     * Apply a named engine template to a repository, creating LFS policies for
+     * each template pattern that does not already exist on the repository.
+     *
+     * @return array{created: list<\App\Models\RepositoryLfsPolicy>, skipped: int, total: int}
+     */
+    public function applyTemplate(Repository $repository, string $template): array
+    {
+        $entries = GameEngineTemplates::get($template);
+
+        if ($entries === null) {
+            throw ValidationException::withMessages([
+                'template' => "Unknown template \"{$template}\".",
+            ]);
+        }
+
+        $existingPatterns = $repository->lfsPolicies()->pluck('pattern')->all();
+        $created = [];
+
+        foreach ($entries as $entry) {
+            if (in_array($entry['pattern'], $existingPatterns, true)) {
+                continue;
+            }
+
+            $created[] = $repository->lfsPolicies()->create([
+                'pattern'     => $entry['pattern'],
+                'description' => $entry['description'],
+            ]);
+        }
+
+        return [
+            'created' => $created,
+            'skipped' => count($entries) - count($created),
+            'total'   => count($entries),
         ];
     }
 
@@ -293,22 +375,42 @@ class LfsService
      * Load the OID → tracked path map for this repository.
      *
      * Resolves NativeGitRepositoryService from the container when it was not
-     * injected. Uses a local variable so a misbound container returns an empty
-     * map instead of a TypeError on property assignment.
+     * injected. Uses a local variable so a misbound container returns an
+     * empty map instead of a TypeError on property assignment.
      *
      * @return array<string, string>
      */
     protected function lfsOidPathMap(Repository $repository): array
     {
-        $service = $this->nativeGit ?? app(NativeGitRepositoryService::class);
-
-        if (! $service instanceof NativeGitRepositoryService) {
-            return [];
-        }
-
-        return $service->lfsOidPathMap($repository);
+        return $this->cachedOidPathMap($repository);
     }
 
+    /**
+     * Return the cached OID → tracked path map for this repository, loading
+     * it from NativeGitRepositoryService on first access.
+     *
+     * Resolves NativeGitRepositoryService from the container when it was not
+     * injected. Uses a local variable so a misbound container returns an
+     * empty map instead of a TypeError on property assignment.
+     *
+     * @return array<string, string>
+     */
+    protected function cachedOidPathMap(Repository $repository): array
+    {
+        $key = (string) $repository->getKey();
+
+        if (array_key_exists($key, $this->oidPathMapCache)) {
+            return $this->oidPathMapCache[$key];
+        }
+
+        $service = $this->nativeGit ?? app(NativeGitRepositoryService::class);
+
+        $map = $service instanceof NativeGitRepositoryService
+            ? $service->lfsOidPathMap($repository)
+            : [];
+
+        return $this->oidPathMapCache[$key] = $map;
+    }
 
     protected function guardOid(string $oid): void
     {
