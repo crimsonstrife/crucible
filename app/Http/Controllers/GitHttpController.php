@@ -189,7 +189,7 @@ class GitHttpController extends Controller
             $output = $this->nativeGit->handleStatelessRpc(
                 $repository,
                 'git-upload-pack',
-                $request->getContent(),
+                $this->decodedRequestBody($request),
             );
         } catch (RuntimeException $exception) {
             abort(500, $exception->getMessage());
@@ -227,7 +227,7 @@ class GitHttpController extends Controller
             $output = $this->nativeGit->handleStatelessRpc(
                 $repository,
                 'git-receive-pack',
-                $request->getContent(),
+                $this->decodedRequestBody($request),
             );
         } catch (RuntimeException $exception) {
             abort(500, $exception->getMessage());
@@ -237,5 +237,33 @@ class GitHttpController extends Controller
             'Content-Type' => 'application/x-git-receive-pack-result',
             'Cache-Control' => 'no-cache, no-store',
         ]);
+    }
+
+    /**
+     * Return the raw request body, decoding Content-Encoding if present.
+     *
+     * Git clients frequently gzip upload-pack / receive-pack request bodies.
+     * `git upload-pack --stateless-rpc` does not understand gzip, so we must
+     * decode here before piping to stdin, otherwise git reports
+     * "fatal: protocol error: bad line length character".
+     */
+    protected function decodedRequestBody(Request $request): string
+    {
+        $body = $request->getContent();
+        $encoding = strtolower(trim((string) $request->header('Content-Encoding', '')));
+
+        if ($encoding === '' || $encoding === 'identity') {
+            return $body;
+        }
+
+        if ($encoding === 'gzip' || $encoding === 'x-gzip') {
+            $decoded = @gzdecode($body);
+            if ($decoded === false) {
+                abort(400, 'Malformed gzip-encoded git request body.');
+            }
+            return $decoded;
+        }
+
+        abort(415, "Unsupported Content-Encoding: {$encoding}");
     }
 }
