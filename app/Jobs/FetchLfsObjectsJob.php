@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Repository;
 use App\Services\LfsService;
 use App\Services\NativeGitRepositoryService;
+use App\Support\MimeDetector;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -94,6 +95,12 @@ class FetchLfsObjectsJob implements ShouldQueue
         $existingOids = $repository->lfsObjects()->pluck('oid')->flip();
         $importedCount = 0;
 
+        // Map OID → tracked path so we can derive a mime type from the file
+        // extension at ingest time.  Falls back to an empty map if git-lfs is
+        // not installed; the LFS dashboard will resolve mime types at display
+        // time in that case.
+        $oidToPath = $nativeGit->lfsOidPathMap($repository);
+
         foreach ($cachedObjects as $obj) {
             if ($existingOids->has($obj['oid'])) {
                 continue;
@@ -113,8 +120,12 @@ class FetchLfsObjectsJob implements ShouldQueue
 
             $stream = fopen($filePath, 'rb');
 
+            $mimeType = isset($oidToPath[$obj['oid']])
+                ? MimeDetector::mimeFromExtension($oidToPath[$obj['oid']])
+                : null;
+
             try {
-                $lfsService->store($repository, $obj['oid'], $obj['size'], $stream);
+                $lfsService->store($repository, $obj['oid'], $obj['size'], $stream, $mimeType);
                 $importedCount++;
             } catch (\Throwable $e) {
                 Log::warning('[FetchLfsObjectsJob] failed to import LFS object', [

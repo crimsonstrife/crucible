@@ -7,6 +7,7 @@ use App\Models\LfsObject;
 use App\Models\Repository;
 use App\Settings\LfsSettings;
 use App\Support\GameEngineTemplates;
+use App\Support\MimeDetector;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -16,6 +17,7 @@ class LfsService
         protected LfsBackendInterface $backend,
         protected LfsSettings $settings,
         protected ?StorageQuotaService $quotaService = null,
+        protected ?NativeGitRepositoryService $nativeGit = null,
     ) {}
 
     public function isEnabledFor(Repository $repository): bool
@@ -201,21 +203,30 @@ class LfsService
      */
     public function storageStats(Repository $repository): array
     {
-        $query = $repository->lfsObjects();
+        $totals = $repository->lfsObjects()
+            ->selectRaw('COUNT(*) as count, COALESCE(SUM(size), 0) as total_size')
+            ->first();
 
-        $totals = $query->selectRaw('COUNT(*) as count, COALESCE(SUM(size), 0) as total_size')->first();
+        $oidToPath = $this->lfsOidPathMap($repository);
 
-        $byMime = $repository->lfsObjects()
-            ->selectRaw("COALESCE(mime_type, 'application/octet-stream') as grouped_mime, COUNT(*) as count, COALESCE(SUM(size), 0) as total_size")
-            ->groupBy('grouped_mime')
-            ->orderByDesc('total_size')
+        $buckets = [];
+
+        $repository->lfsObjects()
+            ->select(['oid', 'mime_type', 'size'])
             ->get()
-            ->map(fn ($row) => [
-                'mime_type'  => $row->grouped_mime,
-                'count'      => (int) $row->count,
-                'total_size' => (int) $row->total_size,
-            ])
-            ->all();
+            ->each(function (LfsObject $obj) use (&$buckets, $oidToPath) {
+                $mime = $this->effectiveMimeType($obj, $oidToPath) ?? 'application/octet-stream';
+
+                if (! isset($buckets[$mime])) {
+                    $buckets[$mime] = ['mime_type' => $mime, 'count' => 0, 'total_size' => 0];
+                }
+
+                $buckets[$mime]['count']++;
+                $buckets[$mime]['total_size'] += (int) $obj->size;
+            });
+
+        $byMime = array_values($buckets);
+        usort($byMime, fn (array $a, array $b) => $b['total_size'] <=> $a['total_size']);
 
         return [
             'total_objects' => (int) $totals->count,
@@ -229,6 +240,8 @@ class LfsService
      */
     public function largestObjects(Repository $repository, int $limit = 20): array
     {
+        $oidToPath = $this->lfsOidPathMap($repository);
+
         return $repository->lfsObjects()
             ->orderByDesc('size')
             ->limit($limit)
@@ -236,11 +249,44 @@ class LfsService
             ->map(fn (LfsObject $obj) => [
                 'oid'          => $obj->oid,
                 'size'         => $obj->size,
-                'mime_type'    => $obj->mime_type,
+                'mime_type'    => $this->effectiveMimeType($obj, $oidToPath),
                 'storage_path' => $obj->storage_path,
                 'created_at'   => $obj->created_at?->toAtomString(),
             ])
             ->all();
+    }
+
+    /**
+     * Resolve the most useful mime type for an LFS object: prefer the stored
+     * value, otherwise derive one from the tracked file path's extension.
+     *
+     * @param  array<string, string>  $oidToPath
+     */
+    protected function effectiveMimeType(LfsObject $object, array $oidToPath): ?string
+    {
+        if (filled($object->mime_type)) {
+            return $object->mime_type;
+        }
+
+        $path = $oidToPath[$object->oid] ?? null;
+
+        if ($path === null) {
+            return null;
+        }
+
+        return MimeDetector::mimeFromExtension($path);
+    }
+
+    /**
+     * Load the OID → tracked path map for this repository, or an empty array
+     * when the NativeGitRepositoryService is unavailable (e.g. in tests that
+     * construct LfsService directly without the helper).
+     *
+     * @return array<string, string>
+     */
+    protected function lfsOidPathMap(Repository $repository): array
+    {
+        return $this->nativeGit?->lfsOidPathMap($repository) ?? [];
     }
 
     protected function guardOid(string $oid): void
