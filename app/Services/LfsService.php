@@ -257,24 +257,36 @@ class LfsService
     }
 
     /**
-     * Resolve the most useful mime type for an LFS object: prefer the stored
-     * value, otherwise derive one from the tracked file path's extension.
+     * Resolve the most useful mime type for an LFS object.
+     *
+     * Prefers a type derived from the tracked file path's extension, because
+     * the stored `mime_type` column is frequently `application/octet-stream`
+     * (git-lfs clients always send that Content-Type on upload, which the
+     * batch API historically persisted).  Falls back to the stored value when
+     * no tracked path is known or the path yields only the generic binary
+     * type itself.
      *
      * @param  array<string, string>  $oidToPath
      */
     protected function effectiveMimeType(LfsObject $object, array $oidToPath): ?string
     {
-        if (filled($object->mime_type)) {
-            return $object->mime_type;
-        }
+        $generic = 'application/octet-stream';
 
         $path = $oidToPath[$object->oid] ?? null;
 
-        if ($path === null) {
-            return null;
+        $derived = $path !== null ? MimeDetector::mimeFromExtension($path) : null;
+
+        if ($derived !== null && $derived !== $generic) {
+            return $derived;
         }
 
-        return MimeDetector::mimeFromExtension($path);
+        if (filled($object->mime_type) && $object->mime_type !== $generic) {
+            return $object->mime_type;
+        }
+
+        // Last resort: whichever non-null value we have, preferring the
+        // derived one so the caller at least knows a path was available.
+        return $derived ?? $object->mime_type;
     }
 
     /**
