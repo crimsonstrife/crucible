@@ -57,7 +57,7 @@ A self-hosted source control management platform built with Laravel 12, designed
 | Git | 2.38+ (for `merge-tree --write-tree`) |
 | Node.js | 18+ (for asset compilation) |
 | Database | MySQL 8.0+ / MariaDB 10.6+ / PostgreSQL 14+ / SQLite 3.35+ |
-| Redis | 6+ (recommended for queues and cache) |
+| Redis | Valkey / Redis 6+ (`phpredis` with TLS is required for DigitalOcean Managed Valkey) |
 
 ---
 
@@ -177,8 +177,15 @@ FORGE_REDIRECT_URI=https://crucible.example.com/auth/forge/callback
 sudo apt update
 sudo apt install -y \
     php8.3-fpm php8.3-cli php8.3-mbstring php8.3-xml php8.3-curl \
-    php8.3-zip php8.3-bcmath php8.3-gd php8.3-mysql php8.3-redis \
-    git nginx redis-server mysql-server supervisor
+    php8.3-zip php8.3-bcmath php8.3-gd php8.3-mysql php8.3-dev \
+    php-pear pkg-config libssl-dev git nginx mysql-server supervisor
+
+# Install a recent phpredis build with TLS support. The distro package is
+# often too old for managed Valkey / Redis services.
+sudo pecl install redis
+echo "extension=redis.so" | sudo tee /etc/php/8.3/mods-available/redis.ini
+sudo phpenmod redis
+php --ri redis
 
 # Verify git version (2.38+ required for merge-tree --write-tree)
 git --version
@@ -248,11 +255,21 @@ CACHE_STORE=redis
 SESSION_DRIVER=redis
 QUEUE_CONNECTION=redis
 
+REDIS_CLIENT=phpredis
+REDIS_SCHEME=tls
+REDIS_HOST=your-cluster.db.ondigitalocean.com
+REDIS_PORT=25061
+REDIS_PASSWORD=your-digitalocean-valkey-password
+REDIS_DB=0
+REDIS_CACHE_DB=1
+
 CRUCIBLE_GIT_BACKEND=native
 CRUCIBLE_REPOS_PATH=/var/lib/crucible/repositories
 CRUCIBLE_LFS_ENABLED=true
 CRUCIBLE_LFS_BACKEND=local
 ```
+
+For DigitalOcean Managed Valkey, leave `REDIS_HOST` as a plain hostname. Do not prefix it with `tls://`; Laravel reads the TLS setting from `REDIS_SCHEME=tls`. DigitalOcean uses publicly trusted certificates, so you should not need a custom CA bundle or disabled peer verification.
 
 ### Web Server (Nginx)
 
