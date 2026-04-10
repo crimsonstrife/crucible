@@ -24,8 +24,8 @@ use Laravel\Socialite\Two\User;
  */
 class ForgeProvider extends AbstractProvider
 {
-    /** The profile scope grants access to /api/v1/me which includes email. */
-    protected $scopes = ['profile'];
+    /** Scopes requested during SSO: profile for identity, plus API access for integration features. */
+    protected $scopes = ['profile', 'projects:read', 'issues:read'];
 
     protected $scopeSeparator = ' ';
 

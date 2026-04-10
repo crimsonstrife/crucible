@@ -11,6 +11,13 @@ class RepositoryDetail extends Component
 {
     public Repository $repository;
 
+    public string $activeTab = 'code';
+
+    public function switchTab(string $tab): void
+    {
+        $this->activeTab = $tab;
+    }
+
     public function render(RepositoryDriverInterface $driver, RepositoryBrowserService $browser)
     {
         $collaborators    = $this->repository->collaborators()->get();
