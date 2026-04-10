@@ -132,7 +132,6 @@ class ForgeService implements ForgeIntegrationInterface
                     'refresh_token' => $connected->refresh_token,
                     'client_id'     => config('crucible.forge.client_id'),
                     'client_secret' => config('crucible.forge.client_secret'),
-                    'scope'         => '',
                 ]);
 
             if (! $response->successful()) {
