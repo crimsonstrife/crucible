@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\BranchApiController;
+use App\Http\Controllers\Api\V1\ForgeIntegrationApiController;
 use App\Http\Controllers\Api\V1\BranchProtectionApiController;
 use App\Http\Controllers\Api\V1\CommitStatusApiController;
 use App\Http\Controllers\Api\V1\GameEngineApiController;
@@ -151,5 +152,9 @@ Route::prefix('v1')->group(function () {
             // PR Reviews
             Route::get('/pull-requests/{number}/reviews', [PullRequestReviewApiController::class, 'index'])->where('number', '[0-9]+');
             Route::post('/pull-requests/{number}/reviews', [PullRequestReviewApiController::class, 'store'])->where('number', '[0-9]+');
+
+            // Forge Integration (programmatic link management)
+            Route::post('/forge-integration', [ForgeIntegrationApiController::class, 'store']);
+            Route::delete('/forge-integration', [ForgeIntegrationApiController::class, 'destroy']);
         });
 });

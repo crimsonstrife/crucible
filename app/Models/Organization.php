@@ -23,6 +23,8 @@ class Organization extends BaseModel
         'website_url',
         'is_personal',
         'storage_quota_gb',
+        'forge_org_id',
+        'forge_org_slug',
     ];
 
     protected $casts = [

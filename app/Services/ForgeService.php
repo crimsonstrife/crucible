@@ -69,7 +69,7 @@ class ForgeService implements ForgeIntegrationInterface
                     'grant_type'    => 'client_credentials',
                     'client_id'     => $this->m2mClientId,
                     'client_secret' => $this->m2mClientSecret,
-                    'scope'         => 'projects:read',
+                    'scope'         => 'projects:read issues:read organizations:read',
                 ]);
 
             if (! $response->successful()) {
@@ -88,6 +88,7 @@ class ForgeService implements ForgeIntegrationInterface
     /**
      * Retrieve the stored OAuth access token for a given Crucible user.
      * Returns null if the user has not linked their Forge account via SSO.
+     * Automatically refreshes the token when expired if a refresh token is available.
      */
     protected function getUserToken(User $user): ?string
     {
@@ -95,11 +96,71 @@ class ForgeService implements ForgeIntegrationInterface
             ->where('provider', 'forge')
             ->first();
 
-        if (! $connected || $connected->isExpired()) {
+        if (! $connected) {
             return null;
         }
 
+        if ($connected->isExpired()) {
+            if (! $connected->refresh_token) {
+                return null;
+            }
+
+            $refreshed = $this->refreshUserToken($connected);
+
+            if (! $refreshed) {
+                return null;
+            }
+
+            return $refreshed;
+        }
+
         return $connected->access_token;
+    }
+
+    /**
+     * Refresh an expired user OAuth token using the stored refresh token.
+     * Updates the ConnectedApp record with the new tokens on success.
+     */
+    protected function refreshUserToken(ConnectedApp $connected): ?string
+    {
+        try {
+            $response = $this->httpClient()
+                ->asForm()
+                ->timeout(10)
+                ->post($this->baseUrl . '/oauth/token', [
+                    'grant_type'    => 'refresh_token',
+                    'refresh_token' => $connected->refresh_token,
+                    'client_id'     => config('crucible.forge.client_id'),
+                    'client_secret' => config('crucible.forge.client_secret'),
+                    'scope'         => '',
+                ]);
+
+            if (! $response->successful()) {
+                Log::warning('[ForgeService] Failed to refresh user token', [
+                    'user_id' => $connected->user_id,
+                    'status'  => $response->status(),
+                ]);
+
+                return null;
+            }
+
+            $data = $response->json();
+
+            $connected->update([
+                'access_token'     => $data['access_token'],
+                'refresh_token'    => $data['refresh_token'] ?? $connected->refresh_token,
+                'token_expires_at' => now()->addSeconds($data['expires_in'] ?? 1296000),
+            ]);
+
+            return $data['access_token'];
+        } catch (\Throwable $e) {
+            Log::error('[ForgeService] Token refresh exception', [
+                'user_id' => $connected->user_id,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     // ── Projects (M2M system endpoints) ───────────────────────────────────────
@@ -201,6 +262,60 @@ class ForgeService implements ForgeIntegrationInterface
             : $this->m2mGet("/api/v1/issues/{$issueKey}");
 
         return $data['data'] ?? ($data ?: null);
+    }
+
+    // ── Organizations (M2M system endpoint) ──────────────────────────────────────
+
+    /**
+     * List Forge organizations visible to a specific user.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getOrganizations(?string $forgeUserId = null): array
+    {
+        if (! $this->isConfigured() || $forgeUserId === null) {
+            return [];
+        }
+
+        $path = '/api/v1/system/organizations?' . http_build_query(['for_forge_user_id' => $forgeUserId]);
+
+        $response = $this->m2mGet($path);
+
+        return $response['data'] ?? $response;
+    }
+
+    // ── Project Issues (M2M system endpoint) ────────────────────────────────────
+
+    /**
+     * List issues for a Forge project via the M2M system endpoint.
+     *
+     * Used by the repository Issues tab to display linked project issues.
+     * Scoped by the requesting user's forge_user_id.
+     *
+     * @return array{data: array, current_page: int, last_page: int, total: int}
+     */
+    public function getProjectIssues(string $projectId, ?string $forgeUserId = null, array $filters = [], int $page = 1, int $perPage = 25): array
+    {
+        if (! $this->isConfigured() || ! $forgeUserId) {
+            return ['data' => [], 'current_page' => 1, 'last_page' => 1, 'total' => 0];
+        }
+
+        $params = array_filter(array_merge([
+            'for_forge_user_id' => $forgeUserId,
+            'page' => $page,
+            'per_page' => $perPage,
+        ], $filters));
+
+        $path = "/api/v1/system/projects/{$projectId}/issues?" . http_build_query($params);
+
+        $response = $this->m2mGet($path);
+
+        return [
+            'data' => $response['data'] ?? [],
+            'current_page' => $response['current_page'] ?? $response['meta']['current_page'] ?? 1,
+            'last_page' => $response['last_page'] ?? $response['meta']['last_page'] ?? 1,
+            'total' => $response['total'] ?? $response['meta']['total'] ?? 0,
+        ];
     }
 
     // ── VCS link notifications (Crucible → Forge) ──────────────────────────────

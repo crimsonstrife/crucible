@@ -43,7 +43,7 @@ class OrganizationController extends Controller
     public function update(Request $request, Organization $organization)
     {
         $this->authorize('update', $organization);
-        $organization->update($request->only(['name', 'description', 'website_url']));
+        $organization->update($request->only(['name', 'description', 'website_url', 'forge_org_id', 'forge_org_slug']));
         return redirect()->route('organizations.show', $organization)->with('success', 'Organization updated.');
     }
 

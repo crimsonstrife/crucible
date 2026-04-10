@@ -60,6 +60,11 @@
             </div>
         </div>
 
+        {{-- Forge Organization Linking --}}
+        @if (config('crucible.forge.enabled'))
+            <livewire:organizations.forge-org-link :organization="$organization" />
+        @endif
+
         {{-- Danger Zone --}}
         <div class="card border-danger shadow-sm">
             <div class="card-header bg-danger text-white">

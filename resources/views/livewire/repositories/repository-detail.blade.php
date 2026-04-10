@@ -78,6 +78,39 @@
         @endif
     @endif
 
+    {{-- Tab navigation --}}
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link {{ $activeTab === 'code' ? 'active' : '' }} d-inline-flex align-items-center gap-1"
+                    wire:click="switchTab('code')" type="button">
+                <x-octicon name="code" size="16" />
+                <span>Code</span>
+            </button>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link d-inline-flex align-items-center gap-1"
+               href="{{ route('repositories.pull-requests.index', [$repository->organization, $repository]) }}">
+                <x-octicon name="git-pull-request" size="16" />
+                <span>Pull Requests</span>
+                @if ($openPrCount > 0)
+                    <span class="badge bg-success ms-1">{{ $openPrCount }}</span>
+                @endif
+            </a>
+        </li>
+        @if ($forgeIntegration?->is_active)
+            <li class="nav-item">
+                <button class="nav-link {{ $activeTab === 'issues' ? 'active' : '' }} d-inline-flex align-items-center gap-1"
+                        wire:click="switchTab('issues')" type="button">
+                    <x-octicon name="issue-opened" size="16" />
+                    <span>Issues</span>
+                </button>
+            </li>
+        @endif
+    </ul>
+
+    @if ($activeTab === 'issues' && $forgeIntegration?->is_active)
+        <livewire:repositories.forge-issues-tab :repository="$repository" />
+    @else
     <div class="row g-4">
 
         {{-- Left column: Clone + Branches --}}
@@ -577,4 +610,5 @@
         </div>{{-- /right col --}}
 
     </div>
+    @endif
 </div>
