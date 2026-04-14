@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\BranchApiController;
 use App\Http\Controllers\Api\V1\ForgeIntegrationApiController;
 use App\Http\Controllers\Api\V1\BranchProtectionApiController;
+use App\Http\Controllers\Api\V1\CommitApiController;
 use App\Http\Controllers\Api\V1\CommitStatusApiController;
 use App\Http\Controllers\Api\V1\GameEngineApiController;
 use App\Http\Controllers\Api\V1\LfsPolicyApiController;
@@ -158,6 +159,10 @@ Route::prefix('v1')->group(function () {
             // PR Reviews
             Route::get('/pull-requests/{number}/reviews', [PullRequestReviewApiController::class, 'index'])->where('number', '[0-9]+');
             Route::post('/pull-requests/{number}/reviews', [PullRequestReviewApiController::class, 'store'])->where('number', '[0-9]+');
+
+            // Commit history
+            Route::get('/commits', [CommitApiController::class, 'index']);
+            Route::get('/commits/{sha}', [CommitApiController::class, 'show'])->where('sha', '[0-9a-f]{4,40}');
 
             // Forge Integration (programmatic link management)
             Route::post('/forge-integration', [ForgeIntegrationApiController::class, 'store']);
