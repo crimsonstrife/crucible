@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FileLocks\LockFileRequest;
 use App\Models\FileLock;
+use App\Models\Organization;
 use App\Models\Repository;
 use App\Services\FileLockService;
 use Illuminate\Http\JsonResponse;
@@ -12,7 +13,7 @@ use RuntimeException;
 
 class FileLockApiController extends Controller
 {
-    public function index(Request $request, Repository $repository, FileLockService $service): JsonResponse
+    public function index(Request $request, Organization $organization, Repository $repository, FileLockService $service): JsonResponse
     {
         $this->authorize('view', $repository);
 
@@ -29,7 +30,7 @@ class FileLockApiController extends Controller
         ]);
     }
 
-    public function store(LockFileRequest $request, Repository $repository, FileLockService $service): JsonResponse
+    public function store(LockFileRequest $request, Organization $organization, Repository $repository, FileLockService $service): JsonResponse
     {
         $this->authorize('push', $repository);
 
@@ -54,7 +55,7 @@ class FileLockApiController extends Controller
         ], 201);
     }
 
-    public function verify(Request $request, Repository $repository, FileLockService $service): JsonResponse
+    public function verify(Request $request, Organization $organization, Repository $repository, FileLockService $service): JsonResponse
     {
         $this->authorize('push', $repository);
 
@@ -72,7 +73,7 @@ class FileLockApiController extends Controller
         ]);
     }
 
-    public function unlock(Request $request, Repository $repository, FileLock $lock, FileLockService $service): JsonResponse
+    public function unlock(Request $request, Organization $organization, Repository $repository, FileLock $lock, FileLockService $service): JsonResponse
     {
         abort_unless($lock->repository_id === $repository->id, 404);
 
@@ -94,7 +95,7 @@ class FileLockApiController extends Controller
         ]);
     }
 
-    public function destroy(Repository $repository, FileLock $lock, FileLockService $service): JsonResponse
+    public function destroy(Organization $organization, Repository $repository, FileLock $lock, FileLockService $service): JsonResponse
     {
         abort_unless($lock->repository_id === $repository->id, 404);
 

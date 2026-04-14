@@ -16,6 +16,10 @@ use App\Http\Controllers\FileLockApiController;
 use App\Http\Controllers\LfsBatchController;
 use App\Http\Controllers\LfsChunkedUploadController;
 use App\Http\Controllers\TusUploadController;
+use App\Http\Requests\FileLocks\LockFileRequest;
+use App\Models\FileLock;
+use App\Models\Repository;
+use App\Services\FileLockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -118,14 +122,16 @@ Route::prefix('v1')->group(function () {
             });
 
         // ── Legacy unscoped LFS/lock routes (kept for git-lfs client backwards compat) ──
+        // These routes resolve Organization from the Repository's relationship
+        // so the controller signature stays consistent with the scoped routes.
         Route::post('/{repository:slug}/info/lfs/objects/batch', [LfsBatchController::class, 'batch']);
         Route::put('/{repository:slug}/info/lfs/objects/{oid}', [LfsBatchController::class, 'upload']);
         Route::get('/{repository:slug}/info/lfs/objects/{oid}', [LfsBatchController::class, 'download']);
-        Route::get('/{repository:slug}/locks', [FileLockApiController::class, 'index']);
-        Route::post('/{repository:slug}/locks', [FileLockApiController::class, 'store']);
-        Route::post('/{repository:slug}/locks/verify', [FileLockApiController::class, 'verify']);
-        Route::post('/{repository:slug}/locks/{lock}/unlock', [FileLockApiController::class, 'unlock']);
-        Route::delete('/{repository:slug}/locks/{lock}', [FileLockApiController::class, 'destroy']);
+        Route::get('/{repository:slug}/locks', fn (Request $request, Repository $repository, FileLockService $service) => app(FileLockApiController::class)->index($request, $repository->organization, $repository, $service));
+        Route::post('/{repository:slug}/locks', fn (LockFileRequest $request, Repository $repository, FileLockService $service) => app(FileLockApiController::class)->store($request, $repository->organization, $repository, $service));
+        Route::post('/{repository:slug}/locks/verify', fn (Request $request, Repository $repository, FileLockService $service) => app(FileLockApiController::class)->verify($request, $repository->organization, $repository, $service));
+        Route::post('/{repository:slug}/locks/{lock}/unlock', fn (Request $request, Repository $repository, FileLock $lock, FileLockService $service) => app(FileLockApiController::class)->unlock($request, $repository->organization, $repository, $lock, $service));
+        Route::delete('/{repository:slug}/locks/{lock}', fn (Request $request, Repository $repository, FileLock $lock, FileLockService $service) => app(FileLockApiController::class)->destroy($repository->organization, $repository, $lock, $service));
     });
 
     // ── Repo-scoped Forge API routes (user token, global app token, or legacy repo token) ──
