@@ -65,9 +65,9 @@ class DiffParser
 
     private static function parseFileChunk(string $chunk): ?array
     {
-        $lines    = explode("\n", $chunk);
+        $lines = explode("\n", $chunk);
         $lineCount = count($lines);
-        $i        = 0;
+        $i = 0;
 
         // First line must be "diff --git …"
         $headerLine = $lines[$i++] ?? '';
@@ -76,34 +76,67 @@ class DiffParser
         }
 
         $file = [
-            'header'     => $headerLine,
-            'from_path'  => '',
-            'to_path'    => '',
-            'file_name'  => '',
-            'is_new'     => false,
+            'header' => $headerLine,
+            'from_path' => '',
+            'to_path' => '',
+            'file_name' => '',
+            'is_new' => false,
             'is_deleted' => false,
-            'is_binary'  => false,
+            'is_binary' => false,
             'is_renamed' => false,
-            'additions'  => 0,
-            'deletions'  => 0,
-            'hunks'      => [],
+            'additions' => 0,
+            'deletions' => 0,
+            'hunks' => [],
         ];
 
         // Parse extended headers (index, new/deleted file mode, rename, binary, ---, +++)
         while ($i < $lineCount) {
             $line = $lines[$i];
 
-            if (str_starts_with($line, 'new file mode'))          { $file['is_new'] = true; $i++; continue; }
-            if (str_starts_with($line, 'deleted file mode'))      { $file['is_deleted'] = true; $i++; continue; }
-            if (str_starts_with($line, 'rename from') || str_starts_with($line, 'rename to')) { $file['is_renamed'] = true; $i++; continue; }
-            if (str_starts_with($line, 'index '))                 { $i++; continue; }
-            if (str_starts_with($line, 'old mode') || str_starts_with($line, 'new mode')) { $i++; continue; }
-            if (str_starts_with($line, 'similarity index'))       { $i++; continue; }
-            if (str_starts_with($line, 'Binary files'))           { $file['is_binary'] = true; $i++; continue; }
+            if (str_starts_with($line, 'new file mode')) {
+                $file['is_new'] = true;
+                $i++;
+
+                continue;
+            }
+            if (str_starts_with($line, 'deleted file mode')) {
+                $file['is_deleted'] = true;
+                $i++;
+
+                continue;
+            }
+            if (str_starts_with($line, 'rename from') || str_starts_with($line, 'rename to')) {
+                $file['is_renamed'] = true;
+                $i++;
+
+                continue;
+            }
+            if (str_starts_with($line, 'index ')) {
+                $i++;
+
+                continue;
+            }
+            if (str_starts_with($line, 'old mode') || str_starts_with($line, 'new mode')) {
+                $i++;
+
+                continue;
+            }
+            if (str_starts_with($line, 'similarity index')) {
+                $i++;
+
+                continue;
+            }
+            if (str_starts_with($line, 'Binary files')) {
+                $file['is_binary'] = true;
+                $i++;
+
+                continue;
+            }
 
             if (str_starts_with($line, '--- ')) {
                 $file['from_path'] = substr($line, 4);
                 $i++;
+
                 continue;
             }
             if (str_starts_with($line, '+++ ')) {
@@ -127,8 +160,8 @@ class DiffParser
 
         // Parse hunks
         $currentHunk = null;
-        $oldLine     = 0;
-        $newLine     = 0;
+        $oldLine = 0;
+        $newLine = 0;
 
         while ($i < $lineCount) {
             $line = $lines[$i];
@@ -140,11 +173,13 @@ class DiffParser
                 [$oldLine, $newLine] = self::parseHunkHeader($line);
                 $currentHunk = ['header' => $line, 'lines' => []];
                 $i++;
+
                 continue;
             }
 
             if ($currentHunk === null) {
                 $i++;
+
                 continue;
             }
 

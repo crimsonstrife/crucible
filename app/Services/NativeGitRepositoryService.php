@@ -83,12 +83,12 @@ class NativeGitRepositoryService
     /** Rebuild a URL from parse_url() parts. */
     private static function buildUrl(array $parts): string
     {
-        $url = $parts['scheme'] . '://';
+        $url = $parts['scheme'].'://';
 
         if (isset($parts['user'])) {
             $url .= $parts['user'];
             if (isset($parts['pass'])) {
-                $url .= ':' . $parts['pass'];
+                $url .= ':'.$parts['pass'];
             }
             $url .= '@';
         }
@@ -96,17 +96,17 @@ class NativeGitRepositoryService
         $url .= $parts['host'];
 
         if (isset($parts['port'])) {
-            $url .= ':' . $parts['port'];
+            $url .= ':'.$parts['port'];
         }
 
         $url .= $parts['path'] ?? '';
 
         if (isset($parts['query'])) {
-            $url .= '?' . $parts['query'];
+            $url .= '?'.$parts['query'];
         }
 
         if (isset($parts['fragment'])) {
-            $url .= '#' . $parts['fragment'];
+            $url .= '#'.$parts['fragment'];
         }
 
         return $url;
@@ -272,10 +272,10 @@ class NativeGitRepositoryService
                 }
 
                 return [
-                    'name'    => trim($nameRaw),
-                    'sha'     => $sha,
-                    'type'    => trim($type),
-                    'date'    => $dateRaw !== '' ? Carbon::parse(trim($dateRaw)) : null,
+                    'name' => trim($nameRaw),
+                    'sha' => $sha,
+                    'type' => trim($type),
+                    'date' => $dateRaw !== '' ? Carbon::parse(trim($dateRaw)) : null,
                     'subject' => trim($subject ?? ''),
                 ];
             })
@@ -364,7 +364,7 @@ class NativeGitRepositoryService
         }
 
         $hasMergeBase = $this->mergeBase($repository, $base, $head) !== null;
-        $range        = $hasMergeBase ? "{$base}...{$head}" : "{$base}..{$head}";
+        $range = $hasMergeBase ? "{$base}...{$head}" : "{$base}..{$head}";
 
         try {
             return $this->runAndCapture([
@@ -394,7 +394,7 @@ class NativeGitRepositoryService
         }
 
         $hasMergeBase = $this->mergeBase($repository, $base, $head) !== null;
-        $range        = $hasMergeBase ? "{$base}...{$head}" : "{$base}..{$head}";
+        $range = $hasMergeBase ? "{$base}...{$head}" : "{$base}..{$head}";
 
         try {
             $output = $this->runAndCapture([
@@ -453,14 +453,14 @@ class NativeGitRepositoryService
         string $authorEmail,
     ): string {
         $barePath = $this->pathFor($repository);
-        $tempDir  = sys_get_temp_dir().'/crucible-merge-'.uniqid('', true);
+        $tempDir = sys_get_temp_dir().'/crucible-merge-'.uniqid('', true);
 
         $env = [
-            'GIT_AUTHOR_NAME'     => $authorName,
-            'GIT_AUTHOR_EMAIL'    => $authorEmail,
-            'GIT_COMMITTER_NAME'  => $authorName,
+            'GIT_AUTHOR_NAME' => $authorName,
+            'GIT_AUTHOR_EMAIL' => $authorEmail,
+            'GIT_COMMITTER_NAME' => $authorName,
             'GIT_COMMITTER_EMAIL' => $authorEmail,
-            'HOME'                => sys_get_temp_dir(),
+            'HOME' => sys_get_temp_dir(),
             'GIT_LFS_SKIP_SMUDGE' => '1',
         ];
 
@@ -506,14 +506,14 @@ class NativeGitRepositoryService
         string $authorEmail,
     ): string {
         $barePath = $this->pathFor($repository);
-        $tempDir  = sys_get_temp_dir().'/crucible-squash-'.uniqid('', true);
+        $tempDir = sys_get_temp_dir().'/crucible-squash-'.uniqid('', true);
 
         $env = [
-            'GIT_AUTHOR_NAME'      => $authorName,
-            'GIT_AUTHOR_EMAIL'     => $authorEmail,
-            'GIT_COMMITTER_NAME'   => $authorName,
-            'GIT_COMMITTER_EMAIL'  => $authorEmail,
-            'HOME'                 => sys_get_temp_dir(),
+            'GIT_AUTHOR_NAME' => $authorName,
+            'GIT_AUTHOR_EMAIL' => $authorEmail,
+            'GIT_COMMITTER_NAME' => $authorName,
+            'GIT_COMMITTER_EMAIL' => $authorEmail,
+            'HOME' => sys_get_temp_dir(),
             'GIT_LFS_SKIP_SMUDGE' => '1',
         ];
 
@@ -550,14 +550,14 @@ class NativeGitRepositoryService
         string $authorEmail,
     ): string {
         $barePath = $this->pathFor($repository);
-        $tempDir  = sys_get_temp_dir().'/crucible-rebase-'.uniqid('', true);
+        $tempDir = sys_get_temp_dir().'/crucible-rebase-'.uniqid('', true);
 
         $env = [
-            'GIT_AUTHOR_NAME'      => $authorName,
-            'GIT_AUTHOR_EMAIL'     => $authorEmail,
-            'GIT_COMMITTER_NAME'   => $authorName,
-            'GIT_COMMITTER_EMAIL'  => $authorEmail,
-            'HOME'                 => sys_get_temp_dir(),
+            'GIT_AUTHOR_NAME' => $authorName,
+            'GIT_AUTHOR_EMAIL' => $authorEmail,
+            'GIT_COMMITTER_NAME' => $authorName,
+            'GIT_COMMITTER_EMAIL' => $authorEmail,
+            'HOME' => sys_get_temp_dir(),
             'GIT_LFS_SKIP_SMUDGE' => '1',
         ];
 
@@ -596,10 +596,10 @@ class NativeGitRepositoryService
         string $targetBranch,
     ): string {
         $barePath = $this->pathFor($repository);
-        $tempDir  = sys_get_temp_dir().'/crucible-ff-'.uniqid('', true);
+        $tempDir = sys_get_temp_dir().'/crucible-ff-'.uniqid('', true);
 
         $env = [
-            'HOME'                 => sys_get_temp_dir(),
+            'HOME' => sys_get_temp_dir(),
             'GIT_LFS_SKIP_SMUDGE' => '1',
         ];
 
@@ -651,7 +651,7 @@ class NativeGitRepositoryService
     private function canMergeCleanlyFallback(Repository $repository, string $sourceBranch, string $targetBranch): bool
     {
         $barePath = $this->pathFor($repository);
-        $tempDir  = sys_get_temp_dir().'/crucible-check-'.uniqid('', true);
+        $tempDir = sys_get_temp_dir().'/crucible-check-'.uniqid('', true);
 
         try {
             $cloneProcess = new Process([
@@ -720,7 +720,7 @@ class NativeGitRepositoryService
      * Uses git hash-object / git mktree / git commit-tree / git update-ref
      * to create a commit containing the file at the given path on the specified branch.
      *
-     * @return string  The SHA of the new commit.
+     * @return string The SHA of the new commit.
      *
      * @throws RuntimeException
      */
@@ -736,9 +736,9 @@ class NativeGitRepositoryService
         $repoPath = $this->pathFor($repository);
 
         $env = [
-            'GIT_AUTHOR_NAME'     => $authorName,
-            'GIT_AUTHOR_EMAIL'    => $authorEmail,
-            'GIT_COMMITTER_NAME'  => $authorName,
+            'GIT_AUTHOR_NAME' => $authorName,
+            'GIT_AUTHOR_EMAIL' => $authorEmail,
+            'GIT_COMMITTER_NAME' => $authorName,
             'GIT_COMMITTER_EMAIL' => $authorEmail,
         ];
 
@@ -872,7 +872,7 @@ class NativeGitRepositoryService
         $message = trim($process->getErrorOutput()) ?: trim($process->getOutput()) ?: 'Git command failed.';
 
         Log::error('[NativeGitRepositoryService] command failed in dir', [
-            'dir'     => $dir,
+            'dir' => $dir,
             'command' => self::redactCommand($command),
             'message' => $message,
         ]);
@@ -1007,6 +1007,86 @@ class NativeGitRepositoryService
             ->all();
 
         return $this->buildTree($entries);
+    }
+
+    /**
+     * Enumerate every blob reachable from $ref with its byte size.
+     *
+     * Returns a list of ['path' => string, 'size' => int]. Tree entries are skipped.
+     * Unlike recursiveTree() this uses `git ls-tree -r -l` to include the size column,
+     * suitable for aggregating per-language byte totals.
+     */
+    public function blobSizes(Repository $repository, ?string $ref = null): array
+    {
+        $ref ??= $this->defaultBranch($repository);
+
+        if (! $this->hasRevision($repository, $ref)) {
+            return [];
+        }
+
+        $output = trim($this->runAndCapture([
+            'git',
+            '--git-dir',
+            $this->pathFor($repository),
+            'ls-tree',
+            '-r',
+            '-l',
+            $ref,
+        ]));
+
+        if ($output === '') {
+            return [];
+        }
+
+        $entries = [];
+
+        foreach (preg_split('/\R/', $output) as $line) {
+            if ($line === '' || $line === null) {
+                continue;
+            }
+
+            // Format: "<mode> <type> <sha> <size>\t<path>"  (size is "-" for trees)
+            if (! preg_match('/^\d+\s+(?<type>\w+)\s+[0-9a-f]+\s+(?<size>\S+)\t(?<path>.+)$/', $line, $matches)) {
+                continue;
+            }
+
+            if ($matches['type'] !== 'blob' || $matches['size'] === '-') {
+                continue;
+            }
+
+            $entries[] = [
+                'path' => $matches['path'],
+                'size' => (int) $matches['size'],
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Resolve the full SHA of the commit at $ref, or null if the ref does not exist.
+     */
+    public function headSha(Repository $repository, ?string $ref = null): ?string
+    {
+        $ref ??= $this->defaultBranch($repository);
+
+        if (! $this->hasRevision($repository, $ref)) {
+            return null;
+        }
+
+        try {
+            $sha = trim($this->runAndCapture([
+                'git',
+                '--git-dir',
+                $this->pathFor($repository),
+                'rev-parse',
+                $ref.'^{commit}',
+            ]));
+
+            return $sha === '' ? null : $sha;
+        } catch (RuntimeException) {
+            return null;
+        }
     }
 
     public function fileContents(Repository $repository, string $path, ?string $ref = null): ?string
@@ -1295,12 +1375,12 @@ class NativeGitRepositoryService
                 }
 
                 return [
-                    'sha'          => $f[0],
-                    'short_sha'    => $f[1],
-                    'subject'      => $f[2],
-                    'author_name'  => $f[3],
+                    'sha' => $f[0],
+                    'short_sha' => $f[1],
+                    'subject' => $f[2],
+                    'author_name' => $f[3],
                     'author_email' => $f[4],
-                    'author_date'  => $f[5] !== '' ? Carbon::parse($f[5]) : null,
+                    'author_date' => $f[5] !== '' ? Carbon::parse($f[5]) : null,
                 ];
             })
             ->filter()
@@ -1391,16 +1471,16 @@ class NativeGitRepositoryService
         }
 
         return [
-            'sha'          => $f[0],
-            'short_sha'    => $f[1],
-            'subject'      => $f[2],
-            'body'         => trim($f[3]),
-            'author_name'  => $f[4],
+            'sha' => $f[0],
+            'short_sha' => $f[1],
+            'subject' => $f[2],
+            'body' => trim($f[3]),
+            'author_name' => $f[4],
             'author_email' => $f[5],
-            'author_date'  => $f[6] !== '' ? Carbon::parse($f[6]) : null,
-            'parent_shas'  => array_values(array_filter(explode(' ', trim($f[7])))),
-            'stat'         => $stat,
-            'diff'         => $diff,
+            'author_date' => $f[6] !== '' ? Carbon::parse($f[6]) : null,
+            'parent_shas' => array_values(array_filter(explode(' ', trim($f[7])))),
+            'stat' => $stat,
+            'diff' => $diff,
         ];
     }
 

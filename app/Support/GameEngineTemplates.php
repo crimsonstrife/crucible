@@ -32,7 +32,7 @@ class GameEngineTemplates
             ['pattern' => '*.uasset',      'description' => 'Unreal asset',            'lockable' => true],
             ['pattern' => '*.umap',         'description' => 'Unreal map/level',        'lockable' => true],
             ['pattern' => '*.uproject',     'description' => 'Unreal project file',     'lockable' => true],
-            ['pattern' => '*.uplugin',      'description' => 'Unreal plugin descriptor','lockable' => false],
+            ['pattern' => '*.uplugin',      'description' => 'Unreal plugin descriptor', 'lockable' => false],
 
             // 3D models & animation
             ['pattern' => '*.fbx',          'description' => 'FBX 3D model',            'lockable' => true],
@@ -210,11 +210,11 @@ class GameEngineTemplates
     public static function get(string $name): ?array
     {
         return match ($name) {
-            'unreal'  => self::unreal(),
-            'unity'   => self::unity(),
-            'godot'   => self::godot(),
+            'unreal' => self::unreal(),
+            'unity' => self::unity(),
+            'godot' => self::godot(),
             'general' => self::general(),
-            default   => null,
+            default => null,
         };
     }
 

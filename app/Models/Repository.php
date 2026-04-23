@@ -41,20 +41,25 @@ class Repository extends BaseModel
         'lfs_size_kb',
         'lfs_sync_status',
         'engine_type',
+        'language_stats',
+        'language_stats_head_sha',
+        'language_stats_updated_at',
     ];
 
     protected $casts = [
         'vcs_type' => VcsType::class,
         'visibility' => RepositoryVisibility::class,
-        'lfs_enabled'    => 'boolean',
-        'is_archived'    => 'boolean',
-        'is_fork'        => 'boolean',
-        'size_kb'        => 'integer',
-        'lfs_size_kb'    => 'integer',
-        'remote_url'     => 'encrypted',
+        'lfs_enabled' => 'boolean',
+        'is_archived' => 'boolean',
+        'is_fork' => 'boolean',
+        'size_kb' => 'integer',
+        'lfs_size_kb' => 'integer',
+        'remote_url' => 'encrypted',
         'last_synced_at' => 'datetime',
-        'auto_sync'      => 'boolean',
-        'engine_type'    => EngineType::class,
+        'auto_sync' => 'boolean',
+        'engine_type' => EngineType::class,
+        'language_stats' => 'array',
+        'language_stats_updated_at' => 'datetime',
     ];
 
     public function getSlugOptions(): SlugOptions

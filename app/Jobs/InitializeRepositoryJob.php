@@ -42,6 +42,8 @@ class InitializeRepositoryJob implements ShouldQueue
                 Log::info('[InitializeRepositoryJob] dispatching FetchLfsObjectsJob', ['repo' => $repository->id]);
                 FetchLfsObjectsJob::dispatch($repository, $this->cloneFrom ?? $repository->remote_url);
             }
+
+            ComputeRepositoryLanguageStatsJob::dispatch($repository);
         }
 
         Log::info('[InitializeRepositoryJob] completed', ['repo' => $repository->id]);

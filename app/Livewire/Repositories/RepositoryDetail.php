@@ -5,6 +5,7 @@ namespace App\Livewire\Repositories;
 use App\Contracts\RepositoryDriverInterface;
 use App\Models\Repository;
 use App\Services\RepositoryBrowserService;
+use App\Services\RepositoryLanguageStatsService;
 use Livewire\Component;
 
 class RepositoryDetail extends Component
@@ -18,11 +19,14 @@ class RepositoryDetail extends Component
         $this->activeTab = $tab;
     }
 
-    public function render(RepositoryDriverInterface $driver, RepositoryBrowserService $browser)
-    {
-        $collaborators    = $this->repository->collaborators()->get();
-        $fileLocks        = $this->repository->fileLocks()->with('lockedBy')->latest('locked_at')->get();
-        $openPrCount      = $this->repository->pullRequests()->where('status', 'open')->count();
+    public function render(
+        RepositoryDriverInterface $driver,
+        RepositoryBrowserService $browser,
+        RepositoryLanguageStatsService $languageStats,
+    ) {
+        $collaborators = $this->repository->collaborators()->get();
+        $fileLocks = $this->repository->fileLocks()->with('lockedBy')->latest('locked_at')->get();
+        $openPrCount = $this->repository->pullRequests()->where('status', 'open')->count();
         $forgeIntegration = $this->repository->forgeIntegration;
         $browserSnapshot = $browser->snapshot(
             $this->repository,
@@ -37,6 +41,8 @@ class RepositoryDetail extends Component
         $defaultBranch = $exists ? $driver->defaultBranch($this->repository) : ($this->repository->default_branch ?? 'main');
         $diskSize = $exists ? $driver->size($this->repository) : 0;
 
+        $languages = $languageStats->snapshot($this->repository);
+
         return view('livewire.repositories.repository-detail', compact(
             'collaborators',
             'fileLocks',
@@ -47,6 +53,7 @@ class RepositoryDetail extends Component
             'branches',
             'defaultBranch',
             'diskSize',
+            'languages',
         ));
     }
 }

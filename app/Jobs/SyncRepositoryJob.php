@@ -9,7 +9,6 @@ use App\Services\NativeGitRepositoryService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class SyncRepositoryJob implements ShouldQueue
 {
@@ -54,7 +53,7 @@ class SyncRepositoryJob implements ShouldQueue
         if ($driver->exists($repository)) {
             $repository->forceFill([
                 'default_branch' => $driver->defaultBranch($repository),
-                'size_kb'        => (int) ceil($driver->size($repository) / 1024),
+                'size_kb' => (int) ceil($driver->size($repository) / 1024),
                 'last_synced_at' => now(),
             ]);
 
@@ -65,6 +64,8 @@ class SyncRepositoryJob implements ShouldQueue
 
             Log::info('[SyncRepositoryJob] dispatching FetchLfsObjectsJob', ['repo' => $repository->id]);
             FetchLfsObjectsJob::dispatch($repository, $remoteUrl);
+
+            ComputeRepositoryLanguageStatsJob::dispatch($repository);
         }
 
         Log::info('[SyncRepositoryJob] completed', ['repo' => $repository->id]);

@@ -587,6 +587,49 @@
                 @endcan
             </div>
 
+            {{-- Languages --}}
+            @if (($languages['status'] ?? 'empty') !== 'empty')
+                @php
+                    $isPending = $languages['status'] === 'pending';
+                    $isStale   = $languages['status'] === 'stale';
+                    $formatPercent = fn (float $p): string => $p >= 10 ? number_format($p) : number_format($p, 1);
+                @endphp
+                <div class="card shadow-sm mb-4" @if ($isPending) wire:poll.3s @endif>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-semibold">Languages</h6>
+                        @if ($isStale)
+                            <small class="text-muted">Updating&hellip;</small>
+                        @endif
+                    </div>
+                    <div class="card-body">
+                        @if ($isPending)
+                            <div class="d-flex align-items-center gap-2 small text-muted">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span>Calculating languages&hellip;</span>
+                            </div>
+                        @else
+                            <div class="progress mb-3" style="height: 10px; overflow: hidden;" role="img"
+                                 aria-label="Language breakdown by bytes on default branch">
+                                @foreach ($languages['segments'] as $segment)
+                                    <div class="progress-bar"
+                                         style="width: {{ $segment['percent'] }}%; background-color: {{ $segment['color'] }};"
+                                         title="{{ $segment['language'] }} {{ $formatPercent($segment['percent']) }}%"></div>
+                                @endforeach
+                            </div>
+                            <ul class="list-unstyled mb-0 small">
+                                @foreach ($languages['segments'] as $segment)
+                                    <li class="d-flex align-items-center gap-2 mb-1">
+                                        <span aria-hidden="true" style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color: {{ $segment['color'] }};"></span>
+                                        <span class="fw-semibold">{{ $segment['language'] }}</span>
+                                        <span class="text-muted ms-auto">{{ $formatPercent($segment['percent']) }}%</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             {{-- Collaborators --}}
             <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">

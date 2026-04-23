@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Support;
+
+class LanguageColors
+{
+    private const FALLBACK = '#9CA3AF';
+
+    private const COLORS = [
+        'PHP' => '#4F5D95',
+        'Blade' => '#F7523F',
+        'JavaScript' => '#F1E05A',
+        'TypeScript' => '#3178C6',
+        'Vue' => '#41B883',
+        'Svelte' => '#FF3E00',
+        'Python' => '#3572A5',
+        'Ruby' => '#701516',
+        'Go' => '#00ADD8',
+        'Rust' => '#DEA584',
+        'Java' => '#B07219',
+        'Kotlin' => '#A97BFF',
+        'Scala' => '#C22D40',
+        'Groovy' => '#4298B8',
+        'Swift' => '#F05138',
+        'Objective-C' => '#438EFF',
+        'Objective-C++' => '#6866FB',
+        'C' => '#555555',
+        'C++' => '#F34B7D',
+        'C#' => '#178600',
+        'Shell' => '#89E051',
+        'PowerShell' => '#012456',
+        'Batchfile' => '#C1F12E',
+        'HTML' => '#E34C26',
+        'CSS' => '#563D7C',
+        'SCSS' => '#C6538C',
+        'Sass' => '#A53B70',
+        'Less' => '#1D365D',
+        'Stylus' => '#FF6347',
+        'Markdown' => '#083FA1',
+        'MDX' => '#FCB32C',
+        'reStructuredText' => '#141414',
+        'TeX' => '#3D6117',
+        'YAML' => '#CB171E',
+        'TOML' => '#9C4221',
+        'JSON' => '#292929',
+        'XML' => '#0060AC',
+        'INI' => '#D1DBE0',
+        'CSV' => '#237346',
+        'SQL' => '#E38C00',
+        'Dart' => '#00B4AB',
+        'Elixir' => '#6E4A7E',
+        'Erlang' => '#B83998',
+        'Clojure' => '#DB5855',
+        'Haskell' => '#5E5086',
+        'OCaml' => '#3BE133',
+        'F#' => '#B845FC',
+        'Lua' => '#000080',
+        'Perl' => '#0298C3',
+        'R' => '#198CE7',
+        'Julia' => '#A270BA',
+        'Nim' => '#FFC200',
+        'Crystal' => '#000100',
+        'Zig' => '#EC915C',
+        'V' => '#4F87C4',
+        'HLSL' => '#AACE60',
+        'GLSL' => '#5686A5',
+        'ShaderLab' => '#222C37',
+        'Cg' => '#5A8BA6',
+        'Assembly' => '#6E4C13',
+        'Protocol Buffers' => '#336791',
+        'GraphQL' => '#E10098',
+        'Terraform' => '#7B42BC',
+        'HCL' => '#844FBA',
+        'GDScript' => '#355570',
+        'Godot Scene' => '#355570',
+        'Dockerfile' => '#384D54',
+        'Makefile' => '#427819',
+        'CMake' => '#DA3434',
+        'Other' => self::FALLBACK,
+    ];
+
+    public static function for(string $language): string
+    {
+        return self::COLORS[$language] ?? self::FALLBACK;
+    }
+}
