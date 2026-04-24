@@ -628,11 +628,11 @@ class NativeGitRepositoryService
         $repoPath = $this->pathFor($repository);
 
         try {
-            $process = new Process([
+            $process = new Process($this->wrapGitCommand([
                 'git', '--git-dir', $repoPath,
                 'merge-tree', '--write-tree', '--no-messages',
                 $targetBranch, $sourceBranch,
-            ]);
+            ]));
             $process->setTimeout(60);
             $process->run();
 
@@ -654,9 +654,9 @@ class NativeGitRepositoryService
         $tempDir = sys_get_temp_dir().'/crucible-check-'.uniqid('', true);
 
         try {
-            $cloneProcess = new Process([
+            $cloneProcess = new Process($this->wrapGitCommand([
                 'git', 'clone', '--local', '--no-checkout', $barePath, $tempDir,
-            ], sys_get_temp_dir(), ['GIT_LFS_SKIP_SMUDGE' => '1']);
+            ]), sys_get_temp_dir(), ['GIT_LFS_SKIP_SMUDGE' => '1']);
             $cloneProcess->setTimeout(60);
             $cloneProcess->run();
 
@@ -664,7 +664,7 @@ class NativeGitRepositoryService
                 return false;
             }
 
-            $checkoutProcess = new Process(['git', 'checkout', $targetBranch], $tempDir);
+            $checkoutProcess = new Process($this->wrapGitCommand(['git', 'checkout', $targetBranch]), $tempDir);
             $checkoutProcess->setTimeout(30);
             $checkoutProcess->run();
 
@@ -672,9 +672,9 @@ class NativeGitRepositoryService
                 return false;
             }
 
-            $mergeProcess = new Process([
+            $mergeProcess = new Process($this->wrapGitCommand([
                 'git', 'merge', '--no-commit', '--no-ff', 'origin/'.$sourceBranch,
-            ], $tempDir);
+            ]), $tempDir);
             $mergeProcess->setTimeout(60);
             $mergeProcess->run();
 
@@ -697,10 +697,10 @@ class NativeGitRepositoryService
         $repoPath = $this->pathFor($repository);
 
         try {
-            $process = new Process([
+            $process = new Process($this->wrapGitCommand([
                 'git', '--git-dir', $repoPath,
                 'show', "{$ref}:{$path}",
-            ]);
+            ]));
             $process->setTimeout(15);
             $process->run();
 
@@ -816,7 +816,7 @@ class NativeGitRepositoryService
             $commitCmd[] = $parentSha;
         }
 
-        $commitProcess = new Process($commitCmd, null, $env);
+        $commitProcess = new Process($this->wrapGitCommand($commitCmd), null, $env);
         $commitProcess->setTimeout(30);
         $commitProcess->run();
 
@@ -840,7 +840,7 @@ class NativeGitRepositoryService
     /** Run a git command with custom environment variables. */
     protected function runWithEnv(array $command, array $env): Process
     {
-        $process = new Process($command, null, $env);
+        $process = new Process($this->wrapGitCommand($command), null, $env);
         $process->setTimeout(30);
         $process->run();
 
@@ -861,7 +861,7 @@ class NativeGitRepositoryService
     /** Run a command inside a specific directory (non-git-dir form). */
     protected function runIn(string $dir, array $command, array $env = []): Process
     {
-        $process = new Process($command, $dir, $env ?: null);
+        $process = new Process($this->wrapGitCommand($command), $dir, $env ?: null);
         $process->setTimeout(180);
         $process->run();
 
@@ -1125,7 +1125,7 @@ class NativeGitRepositoryService
         }
 
         try {
-            $process = new Process(['git', 'lfs', 'version']);
+            $process = new Process($this->wrapGitCommand(['git', 'lfs', 'version']));
             $process->setTimeout(10);
             $process->run();
 
@@ -1161,7 +1161,7 @@ class NativeGitRepositoryService
 
         Log::debug('[NativeGit] running: '.implode(' ', $this->redactCommand($command)));
 
-        $process = new Process($command);
+        $process = new Process($this->wrapGitCommand($command));
         $process->setTimeout(3600);
         $process->run();
 
@@ -1541,9 +1541,24 @@ class NativeGitRepositoryService
         return $this->run($command, $input)->getOutput();
     }
 
+    /**
+     * Prepend `nice -n 19 ionice -c 3` to a git command when throttling is
+     * enabled. The wrapped git process runs at the lowest CPU priority and in
+     * the idle I/O class, so php-fpm and Valkey always win under contention.
+     * No-op when CRUCIBLE_GIT_NICE_WRAP is false.
+     */
+    protected function wrapGitCommand(array $command): array
+    {
+        if (! config('crucible.git.nice_wrap', false)) {
+            return $command;
+        }
+
+        return ['nice', '-n', '19', 'ionice', '-c', '3', ...$command];
+    }
+
     protected function run(array $command, ?string $input = null): Process
     {
-        $process = new Process($command);
+        $process = new Process($this->wrapGitCommand($command));
         $process->setTimeout(120);
 
         if ($input !== null) {

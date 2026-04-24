@@ -47,6 +47,7 @@ class GitShellCommand extends Command
         // ── Require native driver ─────────────────────────────────────────────
         if (! ($driver instanceof NativeGitDriver)) {
             $this->errorOut('SSH git transport requires the native git backend.');
+
             return self::FAILURE;
         }
 
@@ -55,11 +56,12 @@ class GitShellCommand extends Command
 
         if (! $user) {
             $this->errorOut('Authentication failed: user not found.');
+
             return self::FAILURE;
         }
 
         // ── Resolve the SSH key (optional, for deploy key restriction) ────────
-        $keyId  = $this->option('key-id');
+        $keyId = $this->option('key-id');
         $sshKey = $keyId ? SshKey::find($keyId) : null;
 
         // ── Read and validate SSH_ORIGINAL_COMMAND ────────────────────────────
@@ -67,6 +69,7 @@ class GitShellCommand extends Command
 
         if ($originalCommand === '') {
             $this->errorOut('No git command received. This shell only accepts git operations.');
+
             return self::FAILURE;
         }
 
@@ -74,6 +77,7 @@ class GitShellCommand extends Command
 
         if ($verb === null || $rawPath === null) {
             $this->errorOut("Unsupported command: {$originalCommand}");
+
             return self::FAILURE;
         }
 
@@ -82,6 +86,7 @@ class GitShellCommand extends Command
 
         if ($orgSlug === null || $repoSlug === null) {
             $this->errorOut("Invalid repository path: {$rawPath}");
+
             return self::FAILURE;
         }
 
@@ -89,14 +94,16 @@ class GitShellCommand extends Command
         $organization = Organization::where('slug', $orgSlug)->first();
 
         if (! $organization) {
-            $this->errorOut("Repository not found.");
+            $this->errorOut('Repository not found.');
+
             return self::FAILURE;
         }
 
         $repository = $organization->repositories()->where('slug', $repoSlug)->first();
 
         if (! $repository) {
-            $this->errorOut("Repository not found.");
+            $this->errorOut('Repository not found.');
+
             return self::FAILURE;
         }
 
@@ -104,6 +111,7 @@ class GitShellCommand extends Command
         if ($sshKey && $sshKey->is_deploy_key) {
             if ($sshKey->deploy_repo_id !== $repository->id) {
                 $this->errorOut("This deploy key does not have access to {$orgSlug}/{$repoSlug}.");
+
                 return self::FAILURE;
             }
         }
@@ -112,17 +120,20 @@ class GitShellCommand extends Command
         if ($verb === 'git-receive-pack') {
             if ($repository->is_archived) {
                 $this->errorOut("Repository {$orgSlug}/{$repoSlug} is archived and cannot receive pushes.");
+
                 return self::FAILURE;
             }
 
             if ($user->cannot('push', $repository)) {
                 $this->errorOut("You do not have push access to {$orgSlug}/{$repoSlug}.");
+
                 return self::FAILURE;
             }
         } else {
             // git-upload-pack — read access
             if ($user->cannot('view', $repository)) {
                 $this->errorOut("You do not have read access to {$orgSlug}/{$repoSlug}.");
+
                 return self::FAILURE;
             }
         }
@@ -130,6 +141,7 @@ class GitShellCommand extends Command
         // ── Ensure the repo is on disk ────────────────────────────────────────
         if (! $driver->exists($repository)) {
             $this->errorOut("Repository {$orgSlug}/{$repoSlug} is not yet initialized on disk.");
+
             return self::FAILURE;
         }
 
@@ -140,26 +152,43 @@ class GitShellCommand extends Command
 
         // ── Exec the git binary ───────────────────────────────────────────────
         $repoPath = $nativeGit->pathFor($repository);
-        $gitBin   = (new ExecutableFinder())->find('git') ?? '/usr/bin/git';
+        $finder = new ExecutableFinder;
+        $gitBin = $finder->find('git') ?? '/usr/bin/git';
 
         // git-upload-pack → git upload-pack, git-receive-pack → git receive-pack
         $subcommand = str_replace('git-', '', $verb);
 
+        // Optionally throttle git to yield CPU/disk to php-fpm under contention.
+        $niceWrap = (bool) config('crucible.git.nice_wrap', false);
+        if ($niceWrap) {
+            $niceBin = $finder->find('nice') ?? '/usr/bin/nice';
+            $ioniceBin = $finder->find('ionice') ?? '/usr/bin/ionice';
+            $execPath = $niceBin;
+            $execArgs = ['-n', '19', $ioniceBin, '-c', '3', $gitBin, $subcommand, $repoPath];
+            $openCmd = [$niceBin, '-n', '19', $ioniceBin, '-c', '3', $gitBin, $subcommand, $repoPath];
+        } else {
+            $execPath = $gitBin;
+            $execArgs = [$subcommand, $repoPath];
+            $openCmd = [$gitBin, $subcommand, $repoPath];
+        }
+
         // pcntl_exec replaces the current process image, inheriting all open
         // file descriptors (stdin/stdout/stderr == the SSH pipe).
         if (function_exists('pcntl_exec')) {
-            pcntl_exec($gitBin, [$subcommand, $repoPath]);
+            pcntl_exec($execPath, $execArgs);
             // If we reach this line pcntl_exec failed.
-            $this->errorOut("Failed to exec git.");
+            $this->errorOut('Failed to exec git.');
+
             return self::FAILURE;
         }
 
         // Fallback: proc_open with stdio passthrough.
         $descriptors = [0 => STDIN, 1 => STDOUT, 2 => STDERR];
-        $process     = proc_open([$gitBin, $subcommand, $repoPath], $descriptors, $pipes);
+        $process = proc_open($openCmd, $descriptors, $pipes);
 
         if (! is_resource($process)) {
-            $this->errorOut("Failed to start git process.");
+            $this->errorOut('Failed to start git process.');
+
             return self::FAILURE;
         }
 
@@ -174,7 +203,7 @@ class GitShellCommand extends Command
     {
         // Trim and split on first whitespace
         $command = trim($command);
-        $space   = strpos($command, ' ');
+        $space = strpos($command, ' ');
 
         if ($space === false) {
             return [null, null];
