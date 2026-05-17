@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\V1\LfsPolicyApiController;
 use App\Http\Controllers\Api\V1\OrganizationApiController;
 use App\Http\Controllers\Api\V1\PullRequestApiController;
 use App\Http\Controllers\Api\V1\PullRequestReviewApiController;
+use App\Http\Controllers\Api\V1\ReleaseApiController;
+use App\Http\Controllers\Api\V1\ReleaseTokenApiController;
 use App\Http\Controllers\Api\V1\RepositoryApiController;
 use App\Http\Controllers\Api\V1\SparseCheckoutApiController;
 use App\Http\Controllers\Api\V1\WebhookApiController;
@@ -120,6 +122,17 @@ Route::prefix('v1')->group(function () {
                 Route::post('/locks/verify', [FileLockApiController::class, 'verify']);
                 Route::post('/locks/{lock}/unlock', [FileLockApiController::class, 'unlock']);
                 Route::delete('/locks/{lock}', [FileLockApiController::class, 'destroy']);
+
+                // Releases (write surface — reads live outside auth below)
+                Route::get('/releases/tags-available', [ReleaseApiController::class, 'tagsAvailable']);
+                Route::post('/releases', [ReleaseApiController::class, 'store']);
+                Route::patch('/releases/{release:slug}', [ReleaseApiController::class, 'update']);
+                Route::delete('/releases/{release:slug}', [ReleaseApiController::class, 'destroy']);
+
+                // Per-repo read-only release tokens
+                Route::get('/release-tokens', [ReleaseTokenApiController::class, 'index']);
+                Route::post('/release-tokens', [ReleaseTokenApiController::class, 'store']);
+                Route::delete('/release-tokens/{releaseToken}', [ReleaseTokenApiController::class, 'destroy']);
             });
 
         // ── Legacy unscoped LFS/lock routes (kept for git-lfs client backwards compat) ──
@@ -167,5 +180,17 @@ Route::prefix('v1')->group(function () {
             // Forge Integration (programmatic link management)
             Route::post('/forge-integration', [ForgeIntegrationApiController::class, 'store']);
             Route::delete('/forge-integration', [ForgeIntegrationApiController::class, 'destroy']);
+        });
+
+    // ── Public release reads (no auth middleware — controller does optional auth) ──
+    //     Anonymous + public repo → published releases only.
+    //     Sanctum user → respects RepositoryPolicy@viewReleases.
+    //     Bearer crl_… (release token) → bound repo only, published only.
+    Route::prefix('/{organization:slug}/{repository:slug}')
+        ->scopeBindings()
+        ->group(function () {
+            Route::get('/releases', [ReleaseApiController::class, 'index']);
+            Route::get('/releases/latest', [ReleaseApiController::class, 'latest']);
+            Route::get('/releases/{release:slug}', [ReleaseApiController::class, 'show']);
         });
 });

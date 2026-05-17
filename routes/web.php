@@ -11,6 +11,7 @@ use App\Http\Controllers\PullRequestController;
 use App\Http\Controllers\RepositoryBrowserController;
 use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\RepositoryForgeController;
+use App\Http\Controllers\RepositoryReleasesController;
 use App\Http\Controllers\SshKeyController;
 use Illuminate\Support\Facades\Route;
 
@@ -104,6 +105,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/repositories/{repository:slug}/asset-metadata/{ref}/{path}', [AssetPreviewController::class, 'metadata'])
                 ->name('repositories.asset-metadata')
                 ->where('path', '.+');
+
+            // Releases / changelog
+            Route::get('/repositories/{repository:slug}/releases', [RepositoryReleasesController::class, 'index'])
+                ->name('repositories.releases.index');
+            // Literal /releases/create must come before {release:slug} to avoid being matched as a slug.
+            Route::get('/repositories/{repository:slug}/releases/create', [RepositoryReleasesController::class, 'create'])
+                ->name('repositories.releases.create');
+            Route::get('/repositories/{repository:slug}/releases/{release:slug}/edit', [RepositoryReleasesController::class, 'edit'])
+                ->name('repositories.releases.edit');
+            Route::get('/repositories/{repository:slug}/releases/{release:slug}', [RepositoryReleasesController::class, 'show'])
+                ->name('repositories.releases.show');
 
             // Git browser — tags, commit history, single commit, raw file
             Route::get('/repositories/{repository:slug}/tags', [RepositoryBrowserController::class, 'tags'])

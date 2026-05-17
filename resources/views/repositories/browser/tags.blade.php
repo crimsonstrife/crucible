@@ -19,6 +19,8 @@
             </div>
         </div>
 
+        <livewire:repositories.create-tag-form :repository="$repository" />
+
         @if (empty($tags))
             <div class="card shadow-sm">
                 <div class="card-body text-center py-5 text-muted">
@@ -65,6 +67,12 @@
                                        class="btn btn-sm btn-outline-secondary py-0 px-2">
                                         Commits
                                     </a>
+                                    @can('manageReleases', $repository)
+                                        <a href="{{ route('repositories.releases.create', [$organization, $repository]) }}?tag={{ urlencode($tag['name']) }}"
+                                           class="btn btn-sm btn-outline-primary py-0 px-2">
+                                            Release
+                                        </a>
+                                    @endcan
                                 </div>
                             </div>
                         </li>

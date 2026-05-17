@@ -317,6 +317,34 @@ class NativeGitRepositoryService
     }
 
     /**
+     * Create a tag pointing at the given SHA. With a non-empty $message,
+     * creates an annotated tag (-a -m); otherwise a lightweight tag.
+     *
+     * Throws RuntimeException if the tag already exists or the SHA is invalid.
+     */
+    public function createTag(Repository $repository, string $tag, string $sha, ?string $message = null): void
+    {
+        $args = [
+            'git',
+            '--git-dir', $this->pathFor($repository),
+            '-c', 'user.email=releases@crucible.local',
+            '-c', 'user.name=Crucible',
+            'tag',
+        ];
+
+        if ($message !== null && $message !== '') {
+            $args[] = '-a';
+            $args[] = '-m';
+            $args[] = $message;
+        }
+
+        $args[] = $tag;
+        $args[] = $sha;
+
+        $this->run($args);
+    }
+
+    /**
      * Find the common ancestor commit of two refs (merge-base).
      */
     public function mergeBase(Repository $repository, string $a, string $b): ?string

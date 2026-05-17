@@ -97,6 +97,13 @@
                 @endif
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link d-inline-flex align-items-center gap-1"
+               href="{{ route('repositories.releases.index', [$repository->organization, $repository]) }}">
+                <x-octicon name="tag" size="16" />
+                <span>Releases</span>
+            </a>
+        </li>
         @if ($forgeIntegration?->is_active)
             <li class="nav-item">
                 <button class="nav-link {{ $activeTab === 'issues' ? 'active' : '' }} d-inline-flex align-items-center gap-1"

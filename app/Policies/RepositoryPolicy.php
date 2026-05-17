@@ -85,6 +85,26 @@ class RepositoryPolicy
         return $this->manageLocks($user, $repo);
     }
 
+    public function viewReleases(?User $user, Repository $repo): bool
+    {
+        if ($repo->visibility->value === 'public') {
+            return true;
+        }
+
+        return $user !== null && $this->view($user, $repo);
+    }
+
+    public function manageReleases(User $user, Repository $repo): bool
+    {
+        if ($repo->is_archived) {
+            return false;
+        }
+
+        return $user->id === $repo->owner_id
+            || $this->hasMinRole($user, $repo, CollaboratorRole::Maintain)
+            || $this->allowsSharedAccess($user, $repo, 'update');
+    }
+
     public function push(User $user, Repository $repo): bool
     {
         if ($repo->is_archived) {

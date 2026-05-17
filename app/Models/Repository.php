@@ -138,6 +138,16 @@ class Repository extends BaseModel
         return $this->hasMany(SparseCheckoutProfile::class);
     }
 
+    public function releases(): HasMany
+    {
+        return $this->hasMany(Release::class);
+    }
+
+    public function releaseTokens(): HasMany
+    {
+        return $this->hasMany(ReleaseToken::class);
+    }
+
     /**
      * Alias for fileLocks() — required by Laravel's scoped route binding when
      * the route parameter is named {lock} (binds via Repository::locks()).
