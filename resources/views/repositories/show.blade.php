@@ -36,5 +36,9 @@
         @can('manageCollaborators', $repository)
             <livewire:repositories.collaborator-manager :repository="$repository" />
         @endcan
+
+        @can('manageReleases', $repository)
+            <livewire:repositories.release-tokens-manager :repository="$repository" />
+        @endcan
     </div>
 </x-app-layout>
