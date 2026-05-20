@@ -3,6 +3,7 @@
 namespace App\Livewire\Repositories;
 
 use App\Enums\ReleaseCategory;
+use App\Enums\ReleaseLinkPlatform;
 use App\Models\Release;
 use App\Models\Repository;
 use App\Services\NativeGitRepositoryService;
@@ -32,6 +33,9 @@ class ReleaseForm extends Component
     /** @var array<int, array{category: string, description: string}> */
     public array $entries = [];
 
+    /** @var array<int, array{label: string, url: string, platform: string}> */
+    public array $links = [];
+
     public function mount(?string $preselectedTag = null): void
     {
         if ($this->release !== null) {
@@ -44,6 +48,11 @@ class ReleaseForm extends Component
             $this->entries = $this->release->entries->map(fn ($e) => [
                 'category' => $e->category->value,
                 'description' => $e->description,
+            ])->all();
+            $this->links = $this->release->links->map(fn ($l) => [
+                'label' => (string) $l->label,
+                'url' => (string) $l->url,
+                'platform' => $l->platform?->value ?? ReleaseLinkPlatform::Other->value,
             ])->all();
         } else {
             $this->authorize('manageReleases', $this->repository);
@@ -64,11 +73,23 @@ class ReleaseForm extends Component
         $this->entries = array_values($this->entries);
     }
 
+    public function addLink(string $platform = 'other'): void
+    {
+        $this->links[] = ['label' => '', 'url' => '', 'platform' => $platform];
+    }
+
+    public function removeLink(int $index): void
+    {
+        unset($this->links[$index]);
+        $this->links = array_values($this->links);
+    }
+
     public function save(NativeGitRepositoryService $git): void
     {
         $this->authorize('manageReleases', $this->repository);
 
         $categoryValues = array_map(fn ($c) => $c->value, ReleaseCategory::cases());
+        $platformValues = array_map(fn ($p) => $p->value, ReleaseLinkPlatform::cases());
 
         $validated = $this->validate([
             'tagName'      => ['required', 'string', 'max:255'],
@@ -79,6 +100,10 @@ class ReleaseForm extends Component
             'entries'      => ['array'],
             'entries.*.category'    => ['required', 'string', 'in:'.implode(',', $categoryValues)],
             'entries.*.description' => ['required', 'string', 'max:2000'],
+            'links'        => ['array'],
+            'links.*.label'    => ['required', 'string', 'max:100'],
+            'links.*.url'      => ['required', 'string', 'url', 'max:2048'],
+            'links.*.platform' => ['required', 'string', 'in:'.implode(',', $platformValues)],
         ]);
 
         $isCreate = $this->release === null;
@@ -110,7 +135,12 @@ class ReleaseForm extends Component
             ->values()
             ->all();
 
-        $release = DB::transaction(function () use ($isCreate, $validated, $commitSha, $publishedAt, $entries) {
+        $links = collect($validated['links'] ?? [])
+            ->filter(fn ($l) => trim($l['url'] ?? '') !== '' && trim($l['label'] ?? '') !== '')
+            ->values()
+            ->all();
+
+        $release = DB::transaction(function () use ($isCreate, $validated, $commitSha, $publishedAt, $entries, $links) {
             if ($isCreate) {
                 $release = $this->repository->releases()->create([
                     'author_id'     => auth()->id(),
@@ -141,6 +171,16 @@ class ReleaseForm extends Component
                     'category'    => $entry['category'],
                     'description' => $entry['description'],
                     'position'    => $i,
+                ]);
+            }
+
+            $release->links()->delete();
+            foreach ($links as $i => $link) {
+                $release->links()->create([
+                    'label'    => $link['label'],
+                    'url'      => $link['url'],
+                    'platform' => $link['platform'],
+                    'position' => $i,
                 ]);
             }
 
@@ -192,6 +232,12 @@ class ReleaseForm extends Component
     public function categories(): array
     {
         return ReleaseCategory::cases();
+    }
+
+    #[Computed]
+    public function platforms(): array
+    {
+        return ReleaseLinkPlatform::cases();
     }
 
     public function render()

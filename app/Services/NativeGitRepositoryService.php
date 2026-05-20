@@ -317,6 +317,55 @@ class NativeGitRepositoryService
     }
 
     /**
+     * Stream a source archive of the given commit/tag/branch.
+     *
+     * Returns a Symfony Process started in non-blocking mode whose stdout pipe is
+     * the binary archive. The caller is expected to:
+     *   1. Pull the stream from `$process->getIterator()` or read incrementally
+     *      via the response, and
+     *   2. Call `$process->wait()` once the body has been fully consumed so the
+     *      process is reaped.
+     *
+     * $format must be 'zip' or 'tar.gz'. $prefix becomes the top-level directory
+     * inside the archive (GitHub convention: "{repo}-{tag}/...").
+     *
+     * Throws RuntimeException synchronously if the format is unknown OR if the
+     * SHA is not resolvable (cheap pre-check via resolveSha).
+     */
+    public function archive(Repository $repository, string $sha, string $format, string $prefix): Process
+    {
+        if (! in_array($format, ['zip', 'tar.gz'], true)) {
+            throw new RuntimeException("Unsupported archive format: {$format}");
+        }
+
+        if ($this->resolveSha($repository, $sha) === null) {
+            throw new RuntimeException("Cannot archive: ref '{$sha}' not found in repository.");
+        }
+
+        // git archive --format normalizes "tar.gz" via the .tar.gz suffix on
+        // the archive name; we drive it explicitly via --format=tar.gz which
+        // recent git supports (>= 2.39). For older git use tar + gzip pipe.
+        $gitFormat = $format === 'tar.gz' ? 'tar.gz' : 'zip';
+
+        // Ensure the prefix ends with a trailing slash so files inside the archive
+        // land under it (git archive's convention).
+        $prefix = rtrim($prefix, '/').'/';
+
+        $process = new Process([
+            'git',
+            '--git-dir', $this->pathFor($repository),
+            'archive',
+            '--format='.$gitFormat,
+            '--prefix='.$prefix,
+            $sha,
+        ]);
+        $process->setTimeout(null);   // long archives may take minutes for huge repos
+        $process->start();
+
+        return $process;
+    }
+
+    /**
      * Create a tag pointing at the given SHA. With a non-empty $message,
      * creates an annotated tag (-a -m); otherwise a lightweight tag.
      *

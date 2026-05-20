@@ -191,6 +191,12 @@ Route::prefix('v1')->group(function () {
         ->group(function () {
             Route::get('/releases', [ReleaseApiController::class, 'index']);
             Route::get('/releases/latest', [ReleaseApiController::class, 'latest']);
+            // Source archives must come before /releases/{release:slug} so the
+            // literal ".zip"/".tar.gz" suffix isn't consumed as part of the slug.
+            Route::get('/releases/{release:slug}/source.zip', [ReleaseApiController::class, 'sourceArchive'])
+                ->defaults('format', 'zip');
+            Route::get('/releases/{release:slug}/source.tar.gz', [ReleaseApiController::class, 'sourceArchive'])
+                ->defaults('format', 'tar.gz');
             Route::get('/releases/{release:slug}', [ReleaseApiController::class, 'show']);
         });
 });

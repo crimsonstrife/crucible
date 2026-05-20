@@ -59,6 +59,36 @@
             </div>
         @endif
 
+        @if ($release->links->isNotEmpty())
+            <div class="mb-4 d-flex flex-wrap gap-2">
+                @foreach ($release->links as $link)
+                    <a href="{{ $link->url }}" target="_blank" rel="noopener noreferrer"
+                       class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
+                        @if ($link->platform)
+                            <i class="bi {{ $link->platform->icon() }}" aria-hidden="true"></i>
+                        @endif
+                        <span>{{ $link->label }}</span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
+
+        @if (! $release->is_draft && $release->published_at !== null)
+            @php($archiveBase = url("/api/v1/{$organization->slug}/{$repository->slug}/releases/{$release->slug}"))
+            <div class="mb-4 d-flex flex-wrap gap-2">
+                <a href="{{ $archiveBase }}/source.zip"
+                   class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-zip" aria-hidden="true"></i>
+                    <span>Source code (zip)</span>
+                </a>
+                <a href="{{ $archiveBase }}/source.tar.gz"
+                   class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-zip" aria-hidden="true"></i>
+                    <span>Source code (tar.gz)</span>
+                </a>
+            </div>
+        @endif
+
         @if ($release->entries->isNotEmpty())
             @foreach ($release->entries->groupBy(fn ($e) => $e->category->value) as $categoryValue => $items)
                 @php($cat = $items->first()->category)

@@ -16,7 +16,7 @@ class RepositoryReleasesController extends Controller
 
         $canManage = $request->user()?->can('manageReleases', $repository) ?? false;
 
-        $query = $repository->releases()->with(['author', 'entries']);
+        $query = $repository->releases()->with(['author', 'entries', 'links', 'repository.organization']);
         if (! $canManage) {
             $query->published();
         }
@@ -42,7 +42,7 @@ class RepositoryReleasesController extends Controller
             abort(404);
         }
 
-        $release->load(['author', 'entries']);
+        $release->load(['author', 'entries', 'links', 'repository.organization']);
 
         return view('repositories.releases.show', [
             'organization' => $organization,
@@ -68,7 +68,7 @@ class RepositoryReleasesController extends Controller
         $this->authorize('manageReleases', $repository);
         abort_unless($release->repository_id === $repository->id, 404);
 
-        $release->load('entries');
+        $release->load(['entries', 'links']);
 
         return view('repositories.releases.edit', [
             'organization' => $organization,

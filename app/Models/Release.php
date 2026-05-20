@@ -70,6 +70,12 @@ class Release extends BaseModel
             ->orderBy('position');
     }
 
+    public function links(): HasMany
+    {
+        return $this->hasMany(ReleaseLink::class)
+            ->orderBy('position');
+    }
+
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('is_draft', false)->whereNotNull('published_at');

@@ -95,6 +95,20 @@
                                 </div>
                             @endif
 
+                            @if ($release->links->isNotEmpty())
+                                <div class="mt-3 d-flex gap-2 flex-wrap">
+                                    @foreach ($release->links as $link)
+                                        <a href="{{ $link->url }}" target="_blank" rel="noopener noreferrer"
+                                           class="btn btn-outline-primary btn-sm py-0 px-2 d-inline-flex align-items-center gap-1">
+                                            @if ($link->platform)
+                                                <i class="bi {{ $link->platform->icon() }}" aria-hidden="true"></i>
+                                            @endif
+                                            <span>{{ $link->label }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
+
                             @if ($canManage)
                                 <div class="mt-3 d-flex gap-2">
                                     <a href="{{ route('repositories.releases.edit', [$organization, $repository, $release]) }}"

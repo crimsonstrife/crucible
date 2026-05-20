@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\ReleaseCategory;
+use App\Enums\ReleaseLinkPlatform;
 use App\Http\Controllers\Api\V1\Concerns\ResolvesReleaseReader;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReleaseApiController extends Controller
 {
@@ -37,7 +39,7 @@ class ReleaseApiController extends Controller
 
         $canManage = $user !== null && $user->can('manageReleases', $repository);
 
-        $query = $repository->releases()->with(['author', 'entries']);
+        $query = $repository->releases()->with(['author', 'entries', 'links', 'repository.organization']);
         if (! $canManage) {
             $query->published();
         }
@@ -73,7 +75,7 @@ class ReleaseApiController extends Controller
             abort(404);
         }
 
-        $release->load(['author', 'entries']);
+        $release->load(['author', 'entries', 'links', 'repository.organization']);
 
         return response()->json(['data' => $this->transform($release)]);
     }
@@ -91,7 +93,7 @@ class ReleaseApiController extends Controller
         $latest = $repository->releases()
             ->published()
             ->where('is_latest', true)
-            ->with(['author', 'entries'])
+            ->with(['author', 'entries', 'links', 'repository.organization'])
             ->first();
 
         if ($latest === null) {
@@ -99,6 +101,73 @@ class ReleaseApiController extends Controller
         }
 
         return response()->json(['data' => $this->transform($latest)]);
+    }
+
+    /**
+     * GET /api/v1/{org}/{repo}/releases/{slug}/source.{zip,tar.gz}
+     *
+     * Streams a git archive of the release's commit_sha. Same auth matrix as
+     * the release index/show: anon → public repos only (404 otherwise),
+     * Sanctum user → policy-gated, release token → bound repo only. Drafts
+     * are 404 unless the caller can manageReleases.
+     *
+     * Caching: ETag is "{commit_sha}-{format}" — releases never change once
+     * published, so we mark the response immutable.
+     */
+    public function sourceArchive(
+        Request $request,
+        Organization $organization,
+        Repository $repository,
+        Release $release,
+        string $format,
+    ): StreamedResponse {
+        abort_unless($repository->organization_id === $organization->id, 404);
+        abort_unless($release->repository_id === $repository->id, 404);
+        abort_unless(in_array($format, ['zip', 'tar.gz'], true), 404);
+
+        ['user' => $user, 'releaseToken' => $releaseToken] = $this->resolveReader($request, $repository);
+
+        if ($releaseToken === null && ! Gate::forUser($user)->allows('viewReleases', $repository)) {
+            abort($user ? 403 : 404);
+        }
+
+        $canManage = $user !== null && $user->can('manageReleases', $repository);
+        if (! $canManage && ($release->is_draft || $release->published_at === null)) {
+            abort(404);
+        }
+
+        $etag = '"'.$release->commit_sha.'-'.$format.'"';
+
+        // If the client already has it, save the bandwidth.
+        if (trim((string) $request->header('If-None-Match')) === $etag) {
+            return new StreamedResponse(fn () => null, 304, [
+                'ETag'          => $etag,
+                'Cache-Control' => 'public, max-age=31536000, immutable',
+            ]);
+        }
+
+        $filename  = "{$repository->slug}-{$release->tag_name}.{$format}";
+        $mime      = $format === 'zip' ? 'application/zip' : 'application/gzip';
+        $prefix    = "{$repository->slug}-{$release->tag_name}";
+
+        $process = $this->git->archive($repository, $release->commit_sha, $format, $prefix);
+
+        return new StreamedResponse(function () use ($process) {
+            // Stream stdout chunks to the client as they arrive.
+            $stdout = $process->getIterator(\Symfony\Component\Process\Process::ITER_KEEP_OUTPUT | \Symfony\Component\Process\Process::ITER_SKIP_ERR);
+            foreach ($stdout as $chunk) {
+                echo $chunk;
+                if (function_exists('ob_flush')) { @ob_flush(); }
+                flush();
+            }
+            $process->wait();
+        }, 200, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'ETag'                => $etag,
+            'Cache-Control'       => 'public, max-age=31536000, immutable',
+            'X-Accel-Buffering'   => 'no',   // disable nginx buffering for streamed body
+        ]);
     }
 
     // ── Writes (routes wrap these in auth:sanctum) ───────────────────────────
@@ -136,11 +205,12 @@ class ReleaseApiController extends Controller
             ]);
 
             $this->syncEntries($release, $validated['entries'] ?? []);
+            $this->syncLinks($release, $validated['links'] ?? []);
 
             return $release;
         });
 
-        $release->load(['author', 'entries']);
+        $release->load(['author', 'entries', 'links', 'repository.organization']);
 
         return response()->json(['data' => $this->transform($release)], 201);
     }
@@ -182,9 +252,13 @@ class ReleaseApiController extends Controller
             if (array_key_exists('entries', $validated)) {
                 $this->syncEntries($release, $validated['entries']);
             }
+
+            if (array_key_exists('links', $validated)) {
+                $this->syncLinks($release, $validated['links']);
+            }
         });
 
-        $release->refresh()->load(['author', 'entries']);
+        $release->refresh()->load(['author', 'entries', 'links', 'repository.organization']);
 
         return response()->json(['data' => $this->transform($release)]);
     }
@@ -235,6 +309,7 @@ class ReleaseApiController extends Controller
         $tagNameRule[] = $uniqueTag;
 
         $categoryValues = array_map(fn ($c) => $c->value, ReleaseCategory::cases());
+        $platformValues = array_map(fn ($p) => $p->value, ReleaseLinkPlatform::cases());
 
         return $request->validate([
             'tag_name'              => $tagNameRule,
@@ -247,6 +322,11 @@ class ReleaseApiController extends Controller
             'entries.*.category'    => ['required_with:entries.*', 'string', Rule::in($categoryValues)],
             'entries.*.description' => ['required_with:entries.*', 'string', 'max:2000'],
             'entries.*.position'    => ['nullable', 'integer', 'min:0'],
+            'links'                 => ['array'],
+            'links.*.label'         => ['required_with:links.*', 'string', 'max:100'],
+            'links.*.url'           => ['required_with:links.*', 'string', 'url', 'max:2048'],
+            'links.*.platform'      => ['nullable', 'string', Rule::in($platformValues)],
+            'links.*.position'      => ['nullable', 'integer', 'min:0'],
         ]);
     }
 
@@ -259,6 +339,20 @@ class ReleaseApiController extends Controller
                 'category'    => $entry['category'],
                 'description' => $entry['description'],
                 'position'    => $entry['position'] ?? $i,
+            ]);
+        }
+    }
+
+    protected function syncLinks(Release $release, array $links): void
+    {
+        $release->links()->delete();
+
+        foreach ($links as $i => $link) {
+            $release->links()->create([
+                'label'    => $link['label'],
+                'url'      => $link['url'],
+                'platform' => $link['platform'] ?? ReleaseLinkPlatform::Other->value,
+                'position' => $link['position'] ?? $i,
             ]);
         }
     }
@@ -288,6 +382,43 @@ class ReleaseApiController extends Controller
                 'description' => $e->description,
                 'position'    => $e->position,
             ])->all(),
+            'links' => $release->links->map(fn ($l) => [
+                'id'       => $l->id,
+                'label'    => $l->label,
+                'url'      => $l->url,
+                'platform' => $l->platform?->value,
+                'position' => $l->position,
+            ])->all(),
+            'source_archives' => $this->sourceArchiveUrls($release),
+        ];
+    }
+
+    /**
+     * Build the absolute URLs for the two auto-generated source archives.
+     * Returns null entries if the release is a draft (not yet published),
+     * so consumers don't surface dead links.
+     */
+    protected function sourceArchiveUrls(Release $release): ?array
+    {
+        if ($release->is_draft || $release->published_at === null) {
+            return null;
+        }
+
+        $org  = $release->repository->organization;
+        $repo = $release->repository;
+        $base = url("/api/v1/{$org->slug}/{$repo->slug}/releases/{$release->slug}");
+
+        return [
+            [
+                'format'    => 'zip',
+                'url'       => "{$base}/source.zip",
+                'mime'      => 'application/zip',
+            ],
+            [
+                'format'    => 'tar.gz',
+                'url'       => "{$base}/source.tar.gz",
+                'mime'      => 'application/gzip',
+            ],
         ];
     }
 }

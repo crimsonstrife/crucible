@@ -97,6 +97,53 @@
                 @endif
             </div>
 
+            {{-- External links --}}
+            <div class="mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="form-label mb-0">External links <small class="text-muted">(Steam, itch.io, Discord, etc.)</small></label>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            wire:click="addLink('other')">
+                        + Add link
+                    </button>
+                </div>
+
+                @if (empty($links))
+                    <p class="text-muted small mb-0">No links yet. Add buttons that point to where your build, demo, or community lives.</p>
+                @else
+                    <div class="d-flex flex-column gap-2">
+                        @foreach ($links as $i => $link)
+                            <div class="input-group" wire:key="link-{{ $i }}">
+                                <select class="form-select form-select-sm flex-shrink-1" style="max-width: 140px;"
+                                        wire:model="links.{{ $i }}.platform">
+                                    @foreach ($this->platforms as $platform)
+                                        <option value="{{ $platform->value }}">{{ $platform->label() }}</option>
+                                    @endforeach
+                                </select>
+                                <input type="text"
+                                       class="form-control form-control-sm @error('links.'.$i.'.label') is-invalid @enderror"
+                                       wire:model="links.{{ $i }}.label"
+                                       style="max-width: 220px;"
+                                       placeholder="Button label">
+                                <input type="url"
+                                       class="form-control form-control-sm font-monospace @error('links.'.$i.'.url') is-invalid @enderror"
+                                       wire:model="links.{{ $i }}.url"
+                                       placeholder="https://">
+                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                        wire:click="removeLink({{ $i }})">
+                                    &times;
+                                </button>
+                                @error('links.'.$i.'.label')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                @error('links.'.$i.'.url')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
             {{-- Toggles --}}
             <div class="mb-3 d-flex gap-4">
                 <div class="form-check">

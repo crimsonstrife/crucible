@@ -102,6 +102,89 @@ class NativeGitRepositoryServiceTest extends TestCase
         );
     }
 
+    // ── Source archive (Tier 1) ──────────────────────────────────────
+
+    public function test_archive_streams_a_valid_zip_of_the_tagged_tree(): void
+    {
+        $repository = $this->makeRepository(defaultBranch: 'main');
+        $this->service->initialize($repository);
+        $this->pushCommitToRemote($repository);
+        $sha = $this->service->resolveSha($repository, 'main');
+        $this->assertNotNull($sha);
+
+        $process = $this->service->archive($repository, $sha, 'zip', 'sample-repo-v1.0.0');
+
+        $output = '';
+        foreach ($process->getIterator(Process::ITER_KEEP_OUTPUT | Process::ITER_SKIP_ERR) as $chunk) {
+            $output .= $chunk;
+        }
+        $process->wait();
+
+        $this->assertTrue($process->isSuccessful(), 'git archive failed: '.$process->getErrorOutput());
+        $this->assertNotEmpty($output);
+
+        // Zip file signature: PK\x03\x04
+        $this->assertSame("PK\x03\x04", substr($output, 0, 4), 'Output does not start with a zip signature');
+
+        // Pipe the output through `unzip -l` to confirm the prefix and a known file.
+        $tmpZip = tempnam(sys_get_temp_dir(), 'crucible-archive-test-').'.zip';
+        file_put_contents($tmpZip, $output);
+        try {
+            $list = new Process(['unzip', '-l', $tmpZip]);
+            $list->run();
+            $listing = $list->getOutput();
+
+            $this->assertStringContainsString('sample-repo-v1.0.0/README.md', $listing);
+            $this->assertStringContainsString('sample-repo-v1.0.0/src/GameData.txt', $listing);
+        } finally {
+            @unlink($tmpZip);
+        }
+    }
+
+    public function test_archive_produces_tar_gz_with_gzip_magic_header(): void
+    {
+        $repository = $this->makeRepository(defaultBranch: 'main');
+        $this->service->initialize($repository);
+        $this->pushCommitToRemote($repository);
+        $sha = $this->service->resolveSha($repository, 'main');
+
+        $process = $this->service->archive($repository, $sha, 'tar.gz', 'sample-repo-v1.0.0');
+
+        $output = '';
+        foreach ($process->getIterator(Process::ITER_KEEP_OUTPUT | Process::ITER_SKIP_ERR) as $chunk) {
+            $output .= $chunk;
+        }
+        $process->wait();
+
+        $this->assertTrue($process->isSuccessful(), 'git archive failed: '.$process->getErrorOutput());
+
+        // gzip magic bytes 1f 8b
+        $this->assertSame("\x1f\x8b", substr($output, 0, 2), 'Output does not start with gzip magic bytes');
+    }
+
+    public function test_archive_rejects_unknown_format(): void
+    {
+        $repository = $this->makeRepository(defaultBranch: 'main');
+        $this->service->initialize($repository);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Unsupported archive format/');
+
+        $this->service->archive($repository, str_repeat('a', 40), 'rar', 'prefix');
+    }
+
+    public function test_archive_rejects_unknown_sha(): void
+    {
+        $repository = $this->makeRepository(defaultBranch: 'main');
+        $this->service->initialize($repository);
+        $this->pushCommitToRemote($repository);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/not found/');
+
+        $this->service->archive($repository, str_repeat('f', 40), 'zip', 'prefix');
+    }
+
     // ── URL normalisation ────────────────────────────────────────────
 
     public function test_normalize_rewrites_fine_grained_pat_to_x_access_token(): void
